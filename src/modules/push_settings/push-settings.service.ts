@@ -10,13 +10,13 @@ export class PushSettingsService {
     private readonly pushSettingRepository: Repository<PushSetting>,
   ) {}
 
-  async findByUserId(userId: number) {
+  async findByUserId(userId: string) {
     return this.pushSettingRepository.findOne({
       where: { user_id: userId },
     });
   }
 
-  async createDefault(userId: number) {
+  async createDefault(userId: string) {
     const setting = this.pushSettingRepository.create({
       user_id: userId,
       like: 1,
@@ -30,7 +30,7 @@ export class PushSettingsService {
     return this.pushSettingRepository.save(setting);
   }
 
-  async findOrCreateByUserId(userId: number) {
+  async findOrCreateByUserId(userId: string) {
     let setting = await this.findByUserId(userId);
 
     if (!setting) {
@@ -41,36 +41,36 @@ export class PushSettingsService {
   }
 
   async updatePushSetting(
-    userId: number,
+    userId: string,
     payload: {
-      like?: string;
-      comment?: string;
-      transaction?: string;
-      announcement?: string;
-      sound_on?: string;
+      like?: number;
+      comment?: number;
+      transaction?: number;
+      announcement?: number;
+      sound_on?: number;
       sound_default?: string;
     },
   ) {
     const setting = await this.findOrCreateByUserId(userId);
 
     if (payload.like !== undefined) {
-      setting.like = Number(payload.like);
+      setting.like = payload.like;
     }
 
     if (payload.comment !== undefined) {
-      setting.comment = Number(payload.comment);
+      setting.comment = payload.comment;
     }
 
     if (payload.transaction !== undefined) {
-      setting.transaction = Number(payload.transaction);
+      setting.transaction = payload.transaction;
     }
 
     if (payload.announcement !== undefined) {
-      setting.announcement = Number(payload.announcement);
+      setting.announcement = payload.announcement;
     }
 
     if (payload.sound_on !== undefined) {
-      setting.sound_on = Number(payload.sound_on);
+      setting.sound_on = payload.sound_on;
     }
 
     if (payload.sound_default !== undefined) {

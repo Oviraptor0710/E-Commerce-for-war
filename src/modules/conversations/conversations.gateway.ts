@@ -1,63 +1,81 @@
-import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../users/users.service';
+import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  WebSocketGateway,
+  WebSocketServer,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { Repository } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { isCanonicalPositiveIntegerString } from '../../common/validation';
 
 @WebSocketGateway({ cors: { origin: '*' } })
-export class ConversationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class ConversationsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
-  private connectedUsers = new Map<number, string>();
-
   constructor(
     private readonly jwtService: JwtService,
-    private readonly usersService: UsersService,
     private readonly configService: ConfigService,
-  ) { }
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {}
+
+  private userRoom(userId: string) {
+    return `user:${userId}`;
+  }
+
+  private getToken(client: Socket): string | null {
+    const auth = client.handshake.auth as Record<string, unknown>;
+    const authToken = auth.jwt_token;
+    if (typeof authToken === 'string' && authToken.trim()) return authToken;
+
+    const authorization = client.handshake.headers.authorization;
+    if (typeof authorization !== 'string') return null;
+    const [scheme, token] = authorization.split(' ');
+    return scheme?.toLowerCase() === 'bearer' && token ? token : null;
+  }
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth.jwt_token;
-      if (!token) {
-        console.log(`[Websocket] Client ${client.id} bị từ chối do không có token.`);
-        client.disconnect();
-        return;
-      }
+      const token = this.getToken(client);
+      if (!token) return client.disconnect(true);
 
       const secret = this.configService.get<string>('JWT_SECRET', 'dev-secret');
-      const payload = await this.jwtService.verifyAsync(token, { secret });
+      const payload = await this.jwtService.verifyAsync<
+        Record<string, unknown>
+      >(token, { secret });
+      const subject = payload.sub ?? payload.id ?? payload.userId;
+      if (
+        !isCanonicalPositiveIntegerString(subject)
+      )
+        return client.disconnect(true);
+      const userId = subject;
 
-      const user = await this.usersService.findById(payload.sub);
+      const user = await this.userRepo.findOne({
+        where: { id: userId },
+        select: { id: true, status: true },
+      });
+      if (!user || user.status !== 'active') return client.disconnect(true);
 
-      if (user) {
-        client['user'] = user;
-        this.connectedUsers.set(user.id, client.id);
-        console.log(`[Websocket] User ${user.id} đã kết nối với socket ${client.id}`);
-      } else {
-        client.disconnect();
-      }
-    } catch (error) {
-      console.log(`[Websocket] Lỗi xác thực socket ${client.id}:`, error.message);
-      client.disconnect();
+      await client.join(this.userRoom(user.id));
+    } catch {
+      client.disconnect(true);
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = client['user']?.id;
-    if (userId) {
-      this.connectedUsers.delete(userId);
-      console.log(`[Websocket] User ${userId} đã ngắt kết nối.`);
-    }
+  handleDisconnect() {
+    // Socket.IO automatically removes this socket from all rooms. Using rooms
+    // also means one account can keep multiple browser/device connections.
   }
 
-  notifyUser(receiverId: number, noti: string, messageData: any) {
-    const socketId = this.connectedUsers.get(receiverId);
-    console.log(`[Websocket] notifyUser: receiverId=${receiverId}, event=${noti}, socketId=${socketId ?? 'NOT_FOUND'} (Total active users: ${this.connectedUsers.size})`);
-
-    if (socketId) {
-      this.server.to(socketId).emit(noti, messageData);
-    }
+  notifyUser(receiverId: string, event: string, payload: unknown) {
+    if (!this.server) return;
+    this.server.to(this.userRoom(receiverId)).emit(event, payload);
   }
 }

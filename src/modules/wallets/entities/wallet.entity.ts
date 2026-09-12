@@ -1,20 +1,42 @@
-import { Column, Entity, JoinColumn, OneToMany, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  JoinColumn,
+  OneToMany,
+  OneToOne,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from './transaction.entity';
+import { WalletEntry } from './wallet-entry.entity';
 
 @Entity('wallets')
 export class Wallet {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
-  @Column()
-  user_id: number;
+  @Column({ type: 'bigint' })
+  user_id: string;
 
-  @Column('decimal', { default: 0 })
-  balance: number;
+  @Column('decimal', { precision: 20, scale: 3, default: '0.000' })
+  available_balance: string;
 
-  @Column('decimal', { default: 0 })
-  pending_balance: number;
+  @Column('decimal', { precision: 20, scale: 3, default: '0.000' })
+  pending_balance: string;
+
+  @Column({ type: 'varchar', length: 30, default: 'active' })
+  status: string;
+
+  @Column({ type: 'int', default: 0 })
+  version: number;
+
+  @CreateDateColumn()
+  created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 
   @OneToOne(() => User, (user) => user.wallet)
   @JoinColumn({ name: 'user_id' })
@@ -22,4 +44,7 @@ export class Wallet {
 
   @OneToMany(() => Transaction, (transaction) => transaction.wallet)
   transactions: Transaction[];
+
+  @OneToMany(() => WalletEntry, (entry) => entry.wallet)
+  entries: WalletEntry[];
 }

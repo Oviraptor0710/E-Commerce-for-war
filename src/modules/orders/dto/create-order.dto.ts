@@ -5,44 +5,25 @@ import {
   IsInt,
   IsNotEmpty,
   IsOptional,
+  IsString,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class CreateOrderItemDto {
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  product_id: number;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  quantity: number;
+  @IsPositiveBigIntId() variant_id: string;
+  @Type(() => Number) @IsInt() @Min(1) quantity: number;
 }
 
 export class CreateOrderDto {
+  @IsString() @IsNotEmpty() @MaxLength(150) idempotency_key: string;
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
-
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  address_id: number;
-
-  // 0 = tạo đơn từ giỏ hàng
-  // 1 = tạo đơn trực tiếp từ sản phẩm
-  @Type(() => Number)
-  @IsInt()
-  @IsIn([0, 1])
-  order_source: number;
-
-  // giữ lại để tương thích nếu FE cũ vẫn gửi source
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @IsIn([0, 1])
-  source?: number;
+  @IsPositiveBigIntId() address_id: string;
+  @Type(() => Number) @IsInt() @IsIn([0, 1]) order_source: number;
+  @IsOptional() @Type(() => Number) @IsInt() @IsIn([0, 1]) source?: number;
 }

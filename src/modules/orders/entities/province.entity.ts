@@ -3,8 +3,8 @@ import { Ward } from './ward.entity';
 
 @Entity('Provinces')
 export class Province {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
   @Column()
   name: string;

@@ -1,13 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsNonNegativeBigIntId } from '../../../common/validation';
 
 export class GetCategoriesDto {
   @ApiPropertyOptional({
-    description: '0 là root category, nếu không truyền thì lấy tất cả',
+    description: '0 là root category; nếu không truyền thì lấy tất cả',
   })
   @IsOptional()
-  @IsInt()
-  parent_id?: number;
+  @IsNonNegativeBigIntId({ required: false })
+  parent_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

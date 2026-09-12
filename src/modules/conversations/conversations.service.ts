@@ -1,463 +1,907 @@
-import { Injectable } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { In, Repository } from "typeorm";
-import { DevToken } from "../dev_tokens/entities/dev-token.entity";
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { getApps } from 'firebase-admin/app';
 import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
-import { ApiResponse } from "../../common/interfaces/api-response.interface";
-import { APP_RESPONSE } from "../../common/constants/response.constants";
-import { SendMessageDto } from "./dto/send-message.dto";
-import { Conversation } from "./entities/conversation.entity";
-import { Message } from "./entities/message.entity";
-import { User } from "../users/entities/user.entity";
-import { Product } from "../products/entities/product.entity";
-import { UserBlock } from "../blocks/entities/user-block.entity";
-import { GetListConvDto } from "./dto/get-list-conversation.dto";
-import { GetConvDto } from "./dto/get-conversation.dto";
-import { SetReadMessageDto } from "./dto/set-read-message.dto";
-import { ConversationsGateway } from "./conversations.gateway";
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import {
+  APP_RESPONSE,
+  buildResponse,
+} from '../../common/constants/response.constants';
+import { ApiResponse } from '../../common/interfaces/api-response.interface';
+import { UserBlock } from '../blocks/entities/user-block.entity';
+import { DevToken } from '../dev_tokens/entities/dev-token.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationTargetType } from '../notifications/enums/notification-target-type.enum';
+import { NotificationType } from '../notifications/enums/notification-type.enum';
+import { Product } from '../products/entities/product.entity';
+import { User } from '../users/entities/user.entity';
+import { ConversationsGateway } from './conversations.gateway';
+import { GetConvDto } from './dto/get-conversation.dto';
+import { GetListConvDto } from './dto/get-list-conversation.dto';
+import { SendMessageDto } from './dto/send-message.dto';
+import { SetReadMessageDto } from './dto/set-read-message.dto';
+import { ConversationParticipant } from './entities/conversation-participant.entity';
+import { Conversation } from './entities/conversation.entity';
+import { Message } from './entities/message.entity';
+import { MessageType } from './enums/message-type.enum';
+import { isCanonicalPositiveIntegerString } from '../../common/validation';
+
+interface PreparedMessage {
+  content: string;
+  type: MessageType;
+  preview: string;
+}
+
+interface ConversationListRow {
+  conversation_id: string;
+  last_message_preview: string | null;
+  last_message_type: string | null;
+  last_message_at: Date | string | null;
+  last_message_sender_id: string | null;
+  unread_count: number;
+  partner_id: string;
+  partner_username: string;
+  partner_avatar: string | null;
+}
+
+interface SendTransactionResult {
+  error?: ApiResponse<null>;
+  duplicate?: boolean;
+  conversationId?: string;
+  message?: Message;
+  notification?: Awaited<
+    ReturnType<NotificationsService['createNotificationInTransaction']>
+  >;
+}
+
+type ReadTransactionResult =
+  | { status: 'invalid_message' }
+  | { status: 'not_access' }
+  | {
+      status: 'updated' | 'unchanged';
+      lastReadMessageId: string;
+      unreadCount: number;
+      readAt: Date | null;
+    };
+
+class ConversationIdempotencyConflict extends Error {}
 
 @Injectable()
 export class ConversationsService {
   constructor(
+    private readonly dataSource: DataSource,
     private readonly conversationsGateway: ConversationsGateway,
-
+    private readonly notificationsService: NotificationsService,
     @InjectRepository(Conversation)
     private readonly conversationRepo: Repository<Conversation>,
-
+    @InjectRepository(ConversationParticipant)
+    private readonly participantRepo: Repository<ConversationParticipant>,
     @InjectRepository(Message)
     private readonly messageRepo: Repository<Message>,
-
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
-
     @InjectRepository(UserBlock)
     private readonly userBlockRepo: Repository<UserBlock>,
-
     @InjectRepository(DevToken)
     private readonly devTokenRepo: Repository<DevToken>,
-  ) { }
+  ) {}
 
-  private fail(code: string, message: string): ApiResponse<any> {
-    return {
-      code,
-      message,
-      data: null,
-    };
+  private fail(code: string, message: string): ApiResponse<null> {
+    return buildResponse({ code, message }, null);
   }
 
-  private success(obj: any): ApiResponse<any> {
-    return {
-      ...obj
-    };
+  private success(data: unknown): ApiResponse<unknown> {
+    return buildResponse(APP_RESPONSE.OK, data);
   }
 
-  private async sendPushNotification(userId: number, title?: string, body?: string, data?: any) {
+  private async sendPushNotification(
+    userId: string,
+    title?: string,
+    body?: string,
+    data?: Record<string, unknown>,
+  ) {
     try {
       if (!getApps().length) return;
-
       const tokens = await this.devTokenRepo.find({
-        where: { user_id: userId, is_active: true }
+        where: { user_id: userId, is_active: true },
       });
-
       if (tokens.length === 0) return;
 
-      const deviceTokens = tokens.map(t => t.devtoken);
-      
       const message: MulticastMessage = {
-        tokens: deviceTokens,
-        data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
-        android: {
-          priority: 'high',
-        },
-        apns: {
-          headers: {
-            'apns-priority': '10',
-          },
-        },
+        tokens: tokens.map((token) => token.devtoken),
+        data: data
+          ? Object.fromEntries(
+              Object.entries(data).map(([key, value]) => [key, String(value)]),
+            )
+          : {},
+        android: { priority: 'high' },
+        apns: { headers: { 'apns-priority': '10' } },
       };
-
       if (title || body) {
-        message.notification = {
-          title: title || '',
-          body: body || '',
-        };
+        message.notification = { title: title ?? '', body: body ?? '' };
       }
-      
-      const response = await getMessaging().sendEachForMulticast(message);
-      console.log(`FCM notification sent to user ${userId}, success: ${response.successCount}, failure: ${response.failureCount}`);
+      await getMessaging().sendEachForMulticast(message);
     } catch (error) {
-      console.error(`Failed to send FCM notification to user ${userId}:`, error);
-    }
-  }
-
-  async createConversation(userIds: number[]) {
-    let users: Object[] = [];
-    for (let i = 0; i < userIds.length; i++)
-      users.push({ id: userIds[i] });
-
-    const conversation = this.conversationRepo.create({
-      users: users,
-      time_last_update: Math.floor(Date.now() / 1000),
-    });
-
-    return await this.conversationRepo.save(conversation);
-  }
-
-  async findConversationByUser(userId: number) {
-    const user = await this.userRepo.findOne({
-      where: { id: userId }
-    });
-
-    if (!user) {
-      return this.fail(
-        APP_RESPONSE.USER_NOT_EXIST.code,
-        APP_RESPONSE.USER_NOT_EXIST.message
+      console.error(
+        `Failed to send FCM notification to user ${userId}:`,
+        error,
       );
     }
-
-    return await this.conversationRepo
-      .createQueryBuilder('conversation')
-      .leftJoinAndSelect('conversation.users', 'user')
-      .where('user.id = :userId', { userId })
-      .getMany();
   }
 
-  async findConversationBetweenUsers(userIds: number[]) {
-    const users = await this.userRepo.findByIds(userIds);
+  private async findConversationIdBetweenUsers(
+    firstUserId: string,
+    secondUserId: string,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    const repository = manager
+      ? manager.getRepository(ConversationParticipant)
+      : this.participantRepo;
+    const row = await repository
+      .createQueryBuilder('first_participant')
+      .innerJoin(
+        ConversationParticipant,
+        'second_participant',
+        'second_participant.conversation_id = first_participant.conversation_id AND second_participant.user_id = :secondUserId',
+        { secondUserId },
+      )
+      .select('first_participant.conversation_id', 'conversation_id')
+      .where('first_participant.user_id = :firstUserId', { firstUserId })
+      .limit(1)
+      .getRawOne<{ conversation_id: string }>();
+    return row?.conversation_id ?? null;
+  }
 
-    if (users.length != userIds.length) {
-      return this.fail(
-        APP_RESPONSE.USER_NOT_EXIST.code,
-        APP_RESPONSE.USER_NOT_EXIST.message
-      );
-    }
-
-    const result = await this.conversationRepo
-      .createQueryBuilder('conversation')
-      .leftJoin('conversation.users', 'user')
-      .where('user.id IN (:...userIds)', { userIds })
-      .groupBy('conversation.id')
-      .having('COUNT(user.id) = :count', { count: userIds.length })
-      .select('conversation.id')
-      .getRawOne();
-
-    if (!result) return null;
-
-    return await this.conversationRepo.findOne({
-      where: { id: result.conversation_id },
-      relations: ['users']
+  private async isBlocked(
+    firstUserId: string,
+    secondUserId: string,
+    manager?: EntityManager,
+  ) {
+    const repository = manager
+      ? manager.getRepository(UserBlock)
+      : this.userBlockRepo;
+    return repository.exists({
+      where: [
+        { blocker_id: firstUserId, blocked_id: secondUserId },
+        { blocker_id: secondUserId, blocked_id: firstUserId },
+      ],
     });
   }
 
-  async findConversationById(id: number) {
-    return await this.conversationRepo.findOne({
-      where: { id },
-      relations: ['users'],
-    });
-  }
-
-  async createMessage(sendMessageDto: SendMessageDto, conversationId: number, senderId: number, receiverId: number) {
-    let now = Math.floor(Date.now() / 1000);
-
-    let content = sendMessageDto.message;
-    let type = sendMessageDto.type_message;
-
-    if (sendMessageDto.product_id) {
-      content = JSON.stringify({
-        product_id: sendMessageDto.product_id,
-        message: sendMessageDto.message || '',
-      });
-      type = "product_id";
-    }
-    const message = this.messageRepo.create({
-      content: content,
-      type: type,
-      created_at: now,
-      sender: { id: senderId },
-      receiver: { id: receiverId },
-      conversation: { id: conversationId }
-    });
-    const message_saved = await this.messageRepo.save(message);
-    await this.conversationRepo.update(
-      { id: conversationId },
-      {
-        time_last_update: now,
-        last_messasge_id: message_saved.id,
-      }
-    );
-    return message_saved;
-  }
-
-  async sendMessage(currentUserId: number, sendMessageDto: SendMessageDto) {
-    if (!sendMessageDto.message && !sendMessageDto.product_id)
+  private prepareMessage(
+    dto: SendMessageDto,
+    product?: Product | null,
+  ): PreparedMessage | null {
+    const rawContent = dto.message?.trim() ?? '';
+    if (dto.product_id) {
+      if (!product) return null;
       return {
-        ...APP_RESPONSE.PARAMETER_NOT_ENOUGH,
-        data: null
-      }
+        content: JSON.stringify({
+          product_id: dto.product_id,
+          message: rawContent,
+        }),
+        type: MessageType.PRODUCT,
+        preview: rawContent
+          ? `[Sản phẩm] ${rawContent}`.slice(0, 500)
+          : `[Sản phẩm] ${product.title}`.slice(0, 500),
+      };
+    }
 
-    if (currentUserId === sendMessageDto["to_id"])
+    if (!rawContent || !dto.type_message) return null;
+    if (
+      dto.type_message === MessageType.SYSTEM ||
+      dto.type_message === MessageType.PRODUCT
+    ) {
+      return null;
+    }
+
+    const fixedPreview: Partial<Record<MessageType, string>> = {
+      [MessageType.IMAGE]: '[Hình ảnh]',
+      [MessageType.VIDEO]: '[Video]',
+      [MessageType.FILE]: '[Tệp]',
+    };
+    return {
+      content: rawContent,
+      type: dto.type_message,
+      preview: (fixedPreview[dto.type_message] ?? rawContent).slice(0, 500),
+    };
+  }
+
+  private sameMessage(existing: Message, prepared: PreparedMessage) {
+    return (
+      existing.type === prepared.type && existing.content === prepared.content
+    );
+  }
+
+  private parseInsertResult(raw: unknown) {
+    if (!raw || typeof raw !== 'object') {
+      return { affectedRows: 0, insertId: '' };
+    }
+    const result = raw as Record<string, unknown>;
+    const rawInsertId = result.insertId;
+    return {
+      affectedRows: Number(result.affectedRows ?? 0),
+      insertId:
+        typeof rawInsertId === 'string' ||
+        typeof rawInsertId === 'number' ||
+        typeof rawInsertId === 'bigint'
+          ? String(rawInsertId)
+          : '',
+    };
+  }
+
+  private async ensureConversation(
+    manager: EntityManager,
+    firstUserId: string,
+    secondUserId: string,
+  ): Promise<string | null> {
+    let conversationId = await this.findConversationIdBetweenUsers(
+      firstUserId,
+      secondUserId,
+      manager,
+    );
+    if (conversationId) return conversationId;
+
+    // Lock the two user rows in a stable order. This serializes only the rare
+    // first-message race and prevents two direct conversations for one pair.
+    const userIds = [firstUserId, secondUserId].sort(
+      (a, b) => a.length - b.length || a.localeCompare(b),
+    );
+    const users = await manager
+      .getRepository(User)
+      .createQueryBuilder('user')
+      .select(['user.id', 'user.status'])
+      .where('user.id IN (:...userIds)', { userIds })
+      .orderBy('user.id', 'ASC')
+      .setLock('pessimistic_write')
+      .getMany();
+    if (users.length !== 2 || users.some((user) => user.status !== 'active')) {
+      return null;
+    }
+
+    conversationId = await this.findConversationIdBetweenUsers(
+      firstUserId,
+      secondUserId,
+      manager,
+    );
+    if (conversationId) return conversationId;
+
+    const conversation = await manager.getRepository(Conversation).save(
+      manager.getRepository(Conversation).create({
+        last_message_id: null,
+        last_message_preview: null,
+        last_message_sender_id: null,
+        last_message_type: null,
+        last_message_at: null,
+      }),
+    );
+    await manager.getRepository(ConversationParticipant).insert([
+      {
+        conversation_id: conversation.id,
+        user_id: firstUserId,
+        last_read_message_id: null,
+        last_read_at: null,
+        unread_count: 0,
+      },
+      {
+        conversation_id: conversation.id,
+        user_id: secondUserId,
+        last_read_message_id: null,
+        last_read_at: null,
+        unread_count: 0,
+      },
+    ]);
+    return conversation.id;
+  }
+
+  async sendMessage(currentUserId: string, dto: SendMessageDto) {
+    if (
+      !isCanonicalPositiveIntegerString(currentUserId) ||
+      currentUserId === dto.to_id
+    ) {
       return this.fail(
         APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.message
-      )
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
 
-    if (sendMessageDto["product_id"] && !await this.productRepo.findOne({ where: { id: sendMessageDto["product_id"] } }))
+    const users = await this.userRepo.find({
+      where: { id: In([currentUserId, dto.to_id]), status: 'active' },
+      select: { id: true, username: true, avatar: true },
+    });
+    if (users.length !== 2) {
       return this.fail(
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.message
-      )
-
-    if (await this.userBlockRepo.findOne({ where: { blocker_id: currentUserId, blocked_id: sendMessageDto["to_id"] } }))
+        APP_RESPONSE.USER_NOT_EXIST.code,
+        APP_RESPONSE.USER_NOT_EXIST.message,
+      );
+    }
+    if (await this.isBlocked(currentUserId, dto.to_id)) {
       return this.fail(
         APP_RESPONSE.NOT_ACCESS.code,
-        APP_RESPONSE.NOT_ACCESS.message
-      )
-
-    const userIds = [currentUserId, sendMessageDto.to_id];
-    userIds.sort((a, b) => a - b);
-
-    let conversation = await this.findConversationBetweenUsers(userIds);
-    if (conversation && conversation["code"])
-      return conversation;
-    if (!conversation || conversation == null) {
-      conversation = await this.createConversation(userIds);
+        APP_RESPONSE.NOT_ACCESS.message,
+      );
     }
 
-    const message = await this.createMessage(sendMessageDto, conversation["id"], currentUserId, sendMessageDto.to_id);
-    const data_res = {
-      conversation_id: message["conversation"]["id"] || "",
-      message_id: message["id"],
-      created_at: message["created_at"] || 0
+    const product = dto.product_id
+      ? await this.productRepo.findOne({
+          where: { id: dto.product_id },
+          select: { id: true, title: true },
+        })
+      : null;
+    const prepared = this.prepareMessage(dto, product);
+    if (!prepared) {
+      return this.fail(
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
+    const sender = users.find((user) => user.id === currentUserId)!;
+
+    let transactionResult: SendTransactionResult;
+    try {
+      transactionResult = await this.dataSource.transaction(
+        'READ COMMITTED',
+        async (manager): Promise<SendTransactionResult> => {
+          if (await this.isBlocked(currentUserId, dto.to_id, manager)) {
+            return {
+              error: this.fail(
+                APP_RESPONSE.NOT_ACCESS.code,
+                APP_RESPONSE.NOT_ACCESS.message,
+              ),
+            };
+          }
+
+          const messageRepository = manager.getRepository(Message);
+          const existingBeforeConversation = await messageRepository.findOne({
+            where: {
+              sender_id: currentUserId,
+              client_message_id: dto.client_message_id,
+            },
+          });
+          if (existingBeforeConversation) {
+            const recipientBelongs = await manager
+              .getRepository(ConversationParticipant)
+              .exists({
+                where: {
+                  conversation_id: existingBeforeConversation.conversation_id,
+                  user_id: dto.to_id,
+                },
+              });
+            if (
+              !recipientBelongs ||
+              !this.sameMessage(existingBeforeConversation, prepared)
+            ) {
+              return {
+                error: this.fail(
+                  APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+                  APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+                ),
+              };
+            }
+            return {
+              duplicate: true,
+              conversationId: existingBeforeConversation.conversation_id,
+              message: existingBeforeConversation,
+            };
+          }
+
+          const conversationId = await this.ensureConversation(
+            manager,
+            currentUserId,
+            dto.to_id,
+          );
+          if (!conversationId) {
+            return {
+              error: this.fail(
+                APP_RESPONSE.USER_NOT_EXIST.code,
+                APP_RESPONSE.USER_NOT_EXIST.message,
+              ),
+            };
+          }
+
+          const conversation = await manager
+            .getRepository(Conversation)
+            .createQueryBuilder('conversation')
+            .where('conversation.id = :conversationId', { conversationId })
+            .setLock('pessimistic_write')
+            .getOne();
+          if (!conversation) {
+            return {
+              error: this.fail(
+                APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+                APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+              ),
+            };
+          }
+          const existing = await messageRepository.findOne({
+            where: {
+              sender_id: currentUserId,
+              client_message_id: dto.client_message_id,
+            },
+          });
+          if (existing) {
+            if (
+              existing.conversation_id !== conversationId ||
+              !this.sameMessage(existing, prepared)
+            ) {
+              throw new ConversationIdempotencyConflict();
+            }
+            return {
+              duplicate: true,
+              conversationId,
+              message: existing,
+            };
+          }
+
+          const createdAt = new Date();
+          const insert = await messageRepository
+            .createQueryBuilder()
+            .insert()
+            .into(Message)
+            .values({
+              conversation_id: conversationId,
+              sender_id: currentUserId,
+              client_message_id: dto.client_message_id,
+              content: prepared.content,
+              type: prepared.type,
+              created_at: createdAt,
+            })
+            .orIgnore()
+            .execute();
+          const insertResult = this.parseInsertResult(insert.raw as unknown);
+
+          let message: Message | null = null;
+          if (insertResult.affectedRows === 1) {
+            message = await messageRepository.findOne({
+              where: { id: insertResult.insertId },
+            });
+          } else {
+            message = await messageRepository.findOne({
+              where: {
+                sender_id: currentUserId,
+                client_message_id: dto.client_message_id,
+              },
+            });
+            if (
+              !message ||
+              message.conversation_id !== conversationId ||
+              !this.sameMessage(message, prepared)
+            ) {
+              throw new ConversationIdempotencyConflict();
+            }
+            return { duplicate: true, conversationId, message };
+          }
+          if (!message)
+            throw new Error('Message insert succeeded but could not be read.');
+
+          await manager.getRepository(Conversation).update(conversationId, {
+            last_message_id: message.id,
+            last_message_preview: prepared.preview,
+            last_message_sender_id: currentUserId,
+            last_message_type: prepared.type,
+            last_message_at: message.created_at,
+          });
+          const unreadUpdate = await manager
+            .getRepository(ConversationParticipant)
+            .createQueryBuilder()
+            .update()
+            .set({ unread_count: () => '`unread_count` + 1' })
+            .where('conversation_id = :conversationId', { conversationId })
+            .andWhere('user_id = :receiverId', { receiverId: dto.to_id })
+            .execute();
+          if (unreadUpdate.affected !== 1) {
+            throw new Error('Conversation recipient is missing.');
+          }
+
+          const notification =
+            await this.notificationsService.createNotificationInTransaction(
+              {
+                recipientId: dto.to_id,
+                actorId: currentUserId,
+                type: NotificationType.NEW_MESSAGE,
+                title: `Tin nhắn mới từ ${sender.username}`,
+                content: prepared.preview,
+                imageUrl: sender.avatar ?? null,
+                isNavigable: true,
+                targetType: NotificationTargetType.CONVERSATION,
+                targetId: conversationId,
+                data: { message_id: message.id },
+                deduplicationKey: `NEW_MESSAGE:${message.id}`,
+              },
+              manager,
+            );
+
+          return { conversationId, message, notification };
+        },
+      );
+    } catch (error) {
+      if (error instanceof ConversationIdempotencyConflict) {
+        return this.fail(
+          APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+          APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+        );
+      }
+      throw error;
+    }
+
+    if (transactionResult.error) return transactionResult.error;
+    const conversationId = transactionResult.conversationId!;
+    const message = transactionResult.message!;
+    const messagePayload = {
+      id: message.id,
+      conversation_id: conversationId,
+      sender_id: currentUserId,
+      content: message.content,
+      type: message.type,
+      created_at: message.created_at,
+      sender: {
+        id: sender.id,
+        username: sender.username,
+        avatar: sender.avatar,
+      },
     };
 
-    this.conversationsGateway.notifyUser(sendMessageDto.to_id, 'new_message', message);
-
-    const senderUser = await this.userRepo.findOne({ where: { id: currentUserId }});
-    const senderName = senderUser ? senderUser.username : 'Người dùng';
-    
-    await this.sendPushNotification(
-      sendMessageDto.to_id, 
-      "Tin nhắn mới", 
-      `Bạn có tin nhắn mới từ ${senderName}`, 
-      { type: 'new_message', conversation_id: conversation["id"].toString() }
-    );
-
-    return this.success({
-      ...APP_RESPONSE.OK,
-      data: data_res
-    })
-  }
-
-  async getListConversation(currentUserId: number, getListConvDto: GetListConvDto) {
-    const { index, count } = getListConvDto;
-    const skip = index * count;
-    let qb = this.conversationRepo
-      .createQueryBuilder('conversation')
-      .innerJoin('conversation.users', 'user', 'user.id = :userId', { userId: currentUserId })
-      .leftJoinAndSelect('conversation.users', 'users')
-      .orderBy('conversation.time_last_update', 'DESC')
-      .skip(skip)
-      .take(count);
-    const [conversations, _] = await qb.getManyAndCount();
-
-    if (!Array.isArray(conversations))
-      return this.fail(
-        APP_RESPONSE.UNKNOWN_ERROR.code,
-        APP_RESPONSE.UNKNOWN_ERROR.message
+    if (!transactionResult.duplicate) {
+      this.conversationsGateway.notifyUser(
+        dto.to_id,
+        'new_message',
+        messagePayload,
       );
-
-    let listLastMessageId: number[] = [];
-    for (let i = 0; i < conversations.length; i++)
-      listLastMessageId.push(conversations[i]['last_messasge_id']);
-    let listLastMessage: any[] = [];
-    if (listLastMessageId && listLastMessageId.length > 0) {
-      const orderedIdsString = listLastMessageId
-        .map(id => (typeof id === 'string' ? `'${id}'` : id))
-        .join(',');
-      listLastMessage = await this.messageRepo
-        .createQueryBuilder('message')
-        .leftJoinAndSelect('message.sender', 'sender')
-        .leftJoinAndSelect('message.conversation', 'conversation')
-        .where('message.id IN (:...ids)', { ids: listLastMessageId })
-        .orderBy(`FIELD(message.id, ${orderedIdsString})`)
-        .getMany();
-    }
-
-    let listConv: any[] = [];
-    let num_new_message = 0;
-    for (let i = 0; i < conversations.length; i++) {
-      let idPartner = 0;
-      if (conversations[i]['users'][0]['id'] === currentUserId) idPartner = 1;
-      console.log(listLastMessage[i])
-
-      const unreadCount = await this.messageRepo
-        .createQueryBuilder('message')
-        .where('message.conversation_id = :convId', { convId: conversations[i].id })
-        .andWhere('message.sender_id != :userId', { userId: currentUserId })
-        .andWhere('message.created_at > :lastSeen', { lastSeen: conversations[i].time_last_seen || 0 })
-        .getCount();
-      
-      num_new_message += unreadCount;
-
-      listConv.push({
-        id: conversations[i]["id"],
-        partner: {
-          id: conversations[i]['users'][idPartner]['id'],
-          username: conversations[i]['users'][idPartner]['username'],
-          avatar: conversations[i]['users'][idPartner]['avatar']
+      if (transactionResult.notification?.created) {
+        this.notificationsService.emitNotification(
+          transactionResult.notification.notification,
+        );
+      }
+      await this.sendPushNotification(
+        dto.to_id,
+        'Tin nhắn mới',
+        `Bạn có tin nhắn mới từ ${sender.username}`,
+        {
+          type: NotificationType.NEW_MESSAGE,
+          conversation_id: conversationId,
+          notification_id:
+            transactionResult.notification?.notification.id ?? '',
         },
-        last_message: !listLastMessage[i] ? null : {
-          message: listLastMessage[i].content,
-          type: listLastMessage[i].type,
-          created: listLastMessage[i].created_at,
-          unread: unreadCount > 0
-        },
-        num_new_message: unreadCount
-      });
+      );
     }
 
     return this.success({
-      code: APP_RESPONSE.OK.code,
-      message: APP_RESPONSE.OK.message,
-      data: listConv,
-      num_new_message: num_new_message
-    })
+      conversation_id: conversationId,
+      message_id: message.id,
+      created_at: message.created_at,
+      duplicated: Boolean(transactionResult.duplicate),
+    });
   }
 
-  async getConversation(currentUserId: number, getConvDto: GetConvDto) {
-    let conversation: any = null;
-
-    if (getConvDto.partner_id) {
-      if (currentUserId === Number(getConvDto.partner_id))
-        return this.fail(
-          APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-          APP_RESPONSE.PARAMETER_VALUE_INVALID.message
-        )
-      conversation = await this.findConversationBetweenUsers([currentUserId, getConvDto.partner_id]);
-      if (conversation && conversation['code'])
-        return conversation;
-      if (!conversation) {
-        let block = await this.userBlockRepo.findOne({
-          where: [
-            { blocker_id: currentUserId, blocked_id: Number(getConvDto.partner_id) },
-            { blocker_id: Number(getConvDto.partner_id), blocked_id: currentUserId },
-          ]
-        })
-
-        let can_send_message = (block) ? false : true;
-
-        return {
-          code: APP_RESPONSE.OK.code,
-          message: APP_RESPONSE.OK.message,
-          data: {
-            messages: [],
-            can_send_message: can_send_message
-          }
-        }
-      }
-    }
-
-    if (getConvDto.conversation_id) {
-      conversation = await this.findConversationById(getConvDto.conversation_id);
-      if (!conversation)
-        return this.fail(
-          APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-          APP_RESPONSE.PARAMETER_VALUE_INVALID.message
-        )
-    }
-
-    if (conversation == null)
-      return this.fail(
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.message
+  async getListConversation(currentUserId: string, dto: GetListConvDto) {
+    const skip = dto.index * dto.count;
+    const rows = await this.participantRepo
+      .createQueryBuilder('self_participant')
+      .innerJoin(
+        Conversation,
+        'conversation',
+        'conversation.id = self_participant.conversation_id',
       )
+      .innerJoin(
+        ConversationParticipant,
+        'partner_participant',
+        'partner_participant.conversation_id = self_participant.conversation_id AND partner_participant.user_id <> self_participant.user_id',
+      )
+      .innerJoin(User, 'partner', 'partner.id = partner_participant.user_id')
+      .select('conversation.id', 'conversation_id')
+      .addSelect('conversation.last_message_preview', 'last_message_preview')
+      .addSelect('conversation.last_message_type', 'last_message_type')
+      .addSelect('conversation.last_message_at', 'last_message_at')
+      .addSelect(
+        'conversation.last_message_sender_id',
+        'last_message_sender_id',
+      )
+      .addSelect('self_participant.unread_count', 'unread_count')
+      .addSelect('partner.id', 'partner_id')
+      .addSelect('partner.username', 'partner_username')
+      .addSelect('partner.avatar', 'partner_avatar')
+      .where('self_participant.user_id = :currentUserId', { currentUserId })
+      .orderBy('conversation.last_message_at', 'DESC')
+      .addOrderBy('conversation.id', 'DESC')
+      .offset(skip)
+      .limit(dto.count)
+      .getRawMany<ConversationListRow>();
 
-    let conversationId = conversation.id;
-    let skip = getConvDto.index * getConvDto.count;
-    let [messages, _] = await this.messageRepo.findAndCount({
-      where: {
-        conversation: { id: conversationId }
-      },
-      relations: ['sender'],
-      order: {
-        created_at: 'DESC'
-      },
-      skip: skip,
-      take: getConvDto.count
+    const summary = await this.participantRepo
+      .createQueryBuilder('participant')
+      .select('COUNT(*)', 'total')
+      .addSelect('COALESCE(SUM(participant.unread_count), 0)', 'unread')
+      .where('participant.user_id = :currentUserId', { currentUserId })
+      .getRawOne<{ total: string; unread: string }>();
+
+    const conversations = rows.map((row) => {
+      const unreadCount = row.unread_count;
+      return {
+        id: row.conversation_id,
+        partner: {
+          id: row.partner_id,
+          username: row.partner_username,
+          avatar: row.partner_avatar,
+        },
+        last_message: row.last_message_at
+          ? {
+              message: row.last_message_preview,
+              type: row.last_message_type,
+              created: row.last_message_at,
+              sender_id: row.last_message_sender_id,
+              unread: unreadCount > 0,
+            }
+          : null,
+        num_new_message: unreadCount,
+      };
     });
 
-    if (!Array.isArray(messages))
-      return this.fail(
-        APP_RESPONSE.UNKNOWN_ERROR.code,
-        APP_RESPONSE.UNKNOWN_ERROR.message
-      );
-
-    let formatedMessages: any[] = [];
-    for (let i = 0; i < messages.length; i++) {
-      formatedMessages.push({
-        message: messages[i].content,
-        unread: currentUserId != messages[i].sender.id && messages[i].created_at > conversation.time_last_seen,
-        type: messages[i].type,
-        created: messages[i].created_at,
-        sender: {
-          id: messages[i].sender.id,
-          username: messages[i].sender.username
-        }
-      })
-    }
-
-    let block = await this.userBlockRepo.findOne({
-      where: [
-        { blocker_id: conversation.users[0].id, blocked_id: conversation.users[1].id },
-        { blocker_id: conversation.users[1].id, blocked_id: conversation.users[0].id },
-      ]
-    })
-
-    let can_send_message = (block) ? false : true;
-
     return this.success({
-      ...APP_RESPONSE.OK,
-      data: {
-        messages: formatedMessages,
-        can_send_message: can_send_message
-      }
-    })
+      conversations,
+      total: Number(summary?.total ?? 0),
+      num_new_message: Number(summary?.unread ?? 0),
+    });
   }
 
-  async setReadMessage(currentUserId: number, getConvDto: SetReadMessageDto) {
-    let partner = await this.userRepo.findOneById(getConvDto.partner_id);
-    if (!partner)
-      return this.fail(
-        APP_RESPONSE.USER_NOT_EXIST.code,
-        APP_RESPONSE.USER_NOT_EXIST.message
-      )
-    if (partner.id == currentUserId)
+  private async resolveConversation(
+    currentUserId: string,
+    conversationId?: string,
+    partnerId?: string,
+  ): Promise<
+    | { conversationId: string; partnerId: string }
+    | { conversationId: null; partnerId: string }
+    | null
+  > {
+    if (Boolean(conversationId) === Boolean(partnerId)) return null;
+
+    if (partnerId) {
+      if (partnerId === currentUserId) return null;
+      const partner = await this.userRepo.findOne({
+        where: { id: partnerId, status: 'active' },
+        select: { id: true },
+      });
+      if (!partner) return null;
+      return {
+        conversationId: await this.findConversationIdBetweenUsers(
+          currentUserId,
+          partnerId,
+        ),
+        partnerId,
+      };
+    }
+
+    if (!conversationId || !/^[1-9]\d*$/.test(conversationId)) return null;
+    const id = conversationId;
+    const membership = await this.participantRepo.findOne({
+      where: { conversation_id: id, user_id: currentUserId },
+    });
+    if (!membership) return null;
+    const partner = await this.participantRepo
+      .createQueryBuilder('participant')
+      .select('participant.user_id', 'user_id')
+      .where('participant.conversation_id = :id', { id })
+      .andWhere('participant.user_id <> :currentUserId', { currentUserId })
+      .getRawOne<{ user_id: string }>();
+    if (!partner) return null;
+    return { conversationId: id, partnerId: partner.user_id };
+  }
+
+  async getConversation(currentUserId: string, dto: GetConvDto) {
+    const resolved = await this.resolveConversation(
+      currentUserId,
+      dto.conversation_id,
+      dto.partner_id,
+    );
+    if (!resolved) {
       return this.fail(
         APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
-        APP_RESPONSE.PARAMETER_VALUE_INVALID.message
-      )
-    let conversation: any = await this.findConversationBetweenUsers([partner.id, currentUserId]);
-    if (conversation && conversation["id"]) {
-      await this.conversationRepo.update(conversation.id, {
-        time_last_seen: Math.floor(Date.now() / 1000)
-      });
-      this.conversationsGateway.notifyUser(partner.id, 'read_message', { conversation_id: conversation.id });
-
-      await this.sendPushNotification(
-        partner.id, 
-        undefined, 
-        undefined, 
-        { type: 'read_message', conversation_id: conversation.id.toString() }
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
       );
     }
 
+    const canSendMessage = !(await this.isBlocked(
+      currentUserId,
+      resolved.partnerId,
+    ));
+    if (!resolved.conversationId) {
+      return this.success({
+        conversation_id: null,
+        messages: [],
+        can_send_message: canSendMessage,
+      });
+    }
+
+    const participant = await this.participantRepo.findOne({
+      where: {
+        conversation_id: resolved.conversationId,
+        user_id: currentUserId,
+      },
+    });
+    if (!participant) {
+      return this.fail(
+        APP_RESPONSE.NOT_ACCESS.code,
+        APP_RESPONSE.NOT_ACCESS.message,
+      );
+    }
+
+    const [messages, total] = await this.messageRepo.findAndCount({
+      where: { conversation_id: resolved.conversationId },
+      relations: ['sender'],
+      order: { created_at: 'DESC', id: 'DESC' },
+      skip: dto.index * dto.count,
+      take: dto.count,
+    });
+    const lastReadId = participant.last_read_message_id
+      ? BigInt(participant.last_read_message_id)
+      : 0n;
+
     return this.success({
-      ...APP_RESPONSE.OK,
-      data: []
-    })
+      conversation_id: resolved.conversationId,
+      messages: messages.map((message) => ({
+        id: message.id,
+        message: message.content,
+        unread:
+          message.sender_id !== currentUserId &&
+          BigInt(message.id) > lastReadId,
+        type: message.type,
+        created: message.created_at,
+        sender: {
+          id: message.sender.id,
+          username: message.sender.username,
+          avatar: message.sender.avatar,
+        },
+      })),
+      can_send_message: canSendMessage,
+      total,
+    });
+  }
+
+  async setReadMessage(currentUserId: string, dto: SetReadMessageDto) {
+    if (!/^[1-9]\d*$/.test(dto.last_read_message_id)) {
+      return this.fail(
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
+
+    const resolved = await this.resolveConversation(
+      currentUserId,
+      dto.conversation_id,
+      dto.partner_id,
+    );
+    if (!resolved) {
+      return this.fail(
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
+    if (!resolved.conversationId) {
+      return this.fail(
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
+
+    const result = await this.dataSource.transaction<ReadTransactionResult>(
+      'READ COMMITTED',
+      async (manager) => {
+        // Keep the same lock order as sendMessage: conversation first, then
+        // participant. This serializes an incoming message with a read cursor
+        // update without introducing the inverse lock order that causes
+        // deadlocks.
+        const conversation = await manager
+          .getRepository(Conversation)
+          .createQueryBuilder('conversation')
+          .where('conversation.id = :conversationId', {
+            conversationId: resolved.conversationId,
+          })
+          .setLock('pessimistic_write')
+          .getOne();
+        if (!conversation) return { status: 'not_access' };
+
+        const participant = await manager
+          .getRepository(ConversationParticipant)
+          .createQueryBuilder('participant')
+          .where('participant.conversation_id = :conversationId', {
+            conversationId: resolved.conversationId,
+          })
+          .andWhere('participant.user_id = :currentUserId', { currentUserId })
+          .setLock('pessimistic_write')
+          .getOne();
+        if (!participant) return { status: 'not_access' };
+
+        const acknowledgedMessage = await manager
+          .getRepository(Message)
+          .findOne({
+            where: {
+              id: dto.last_read_message_id,
+              conversation_id: resolved.conversationId,
+            },
+            select: { id: true },
+          });
+        if (!acknowledgedMessage) return { status: 'invalid_message' };
+
+        if (
+          participant.last_read_message_id &&
+          BigInt(dto.last_read_message_id) <=
+            BigInt(participant.last_read_message_id)
+        ) {
+          return {
+            status: 'unchanged',
+            lastReadMessageId: participant.last_read_message_id,
+            unreadCount: participant.unread_count,
+            readAt: participant.last_read_at,
+          };
+        }
+
+        const unreadCount = await manager
+          .getRepository(Message)
+          .createQueryBuilder('message')
+          .where('message.conversation_id = :conversationId', {
+            conversationId: resolved.conversationId,
+          })
+          .andWhere('message.sender_id <> :currentUserId', { currentUserId })
+          .andWhere('message.id > :lastReadMessageId', {
+            lastReadMessageId: dto.last_read_message_id,
+          })
+          .getCount();
+        const readAt = new Date();
+        await manager.getRepository(ConversationParticipant).update(
+          {
+            conversation_id: resolved.conversationId,
+            user_id: currentUserId,
+          },
+          {
+            last_read_message_id: dto.last_read_message_id,
+            last_read_at: readAt,
+            unread_count: unreadCount,
+          },
+        );
+        return {
+          status: 'updated',
+          lastReadMessageId: dto.last_read_message_id,
+          unreadCount,
+          readAt,
+        };
+      },
+    );
+    if (result.status === 'not_access') {
+      return this.fail(
+        APP_RESPONSE.NOT_ACCESS.code,
+        APP_RESPONSE.NOT_ACCESS.message,
+      );
+    }
+    if (result.status === 'invalid_message') {
+      return this.fail(
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
+        APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
+      );
+    }
+
+    const payload = {
+      conversation_id: resolved.conversationId,
+      reader_id: currentUserId,
+      last_read_message_id: result.lastReadMessageId,
+      unread_count: result.unreadCount,
+      read_at: result.readAt,
+    };
+    if (result.status === 'updated') {
+      this.conversationsGateway.notifyUser(
+        resolved.partnerId,
+        'read_message',
+        payload,
+      );
+      this.conversationsGateway.notifyUser(
+        currentUserId,
+        'read_message',
+        payload,
+      );
+    }
+    return this.success({
+      ...payload,
+      updated: result.status === 'updated',
+    });
   }
 }

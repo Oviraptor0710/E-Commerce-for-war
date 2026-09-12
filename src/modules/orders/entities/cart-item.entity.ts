@@ -9,19 +9,21 @@ import {
   Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { Product } from '../../products/entities/product.entity';
+import { ProductVariant } from '../../products/entities/product_variant.entity';
 
 @Entity('cart_items')
-@Index(['user_id', 'product_id'], { unique: true })
+@Index('UQ_cart_items_user_variant', ['user_id', 'variant_id'], {
+  unique: true,
+})
 export class CartItem {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
-  @Column()
-  user_id: number;
+  @Column({ type: 'bigint' })
+  user_id: string;
 
-  @Column()
-  product_id: number;
+  @Column({ type: 'bigint' })
+  variant_id: string;
 
   @Column('int')
   quantity: number;
@@ -36,7 +38,10 @@ export class CartItem {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @ManyToOne(() => Product, (product) => product.cart_items)
-  @JoinColumn({ name: 'product_id' })
-  product: Product;
+  @ManyToOne(() => ProductVariant, { onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'variant_id',
+    foreignKeyConstraintName: 'fk_cart_items_variant',
+  })
+  variant: ProductVariant;
 }

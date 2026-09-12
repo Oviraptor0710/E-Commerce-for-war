@@ -48,6 +48,55 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+
+  // Hầu hết controller hiện trả về cùng một envelope { code, message, data }
+  // thông qua buildResponse(), nhưng không phải endpoint nào cũng có DTO
+  // response riêng. Bổ sung schema chung vào tài liệu Swagger để mọi API đều
+  // hiển thị được cấu trúc response mà không tạo dữ liệu ví dụ giả.
+  document.components = document.components ?? {};
+  document.components.schemas = document.components.schemas ?? {};
+  document.components.schemas.ApiResponseEnvelope = {
+    type: 'object',
+    properties: {
+      code: { type: 'string' },
+      message: { type: 'string' },
+      data: {
+        nullable: true,
+        description: 'Dữ liệu trả về; kiểu cụ thể phụ thuộc endpoint.',
+        oneOf: [
+          { type: 'object', additionalProperties: true },
+          { type: 'array', items: {} },
+          { type: 'string' },
+          { type: 'number' },
+          { type: 'boolean' },
+        ],
+      },
+    },
+    required: ['code', 'message', 'data'],
+  };
+
+  for (const pathItem of Object.values(document.paths)) {
+    for (const operation of Object.values(pathItem)) {
+      if (!operation || typeof operation !== 'object' || !('responses' in operation)) {
+        continue;
+      }
+
+      const responses = (operation as { responses?: Record<string, any> }).responses;
+      if (!responses) continue;
+
+      for (const status of ['200', '201']) {
+        const response = responses[status];
+        if (response && !response.content) {
+          response.content = {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ApiResponseEnvelope' },
+            },
+          };
+        }
+      }
+    }
+  }
+
   SwaggerModule.setup('api-docs', app, document);
 
   await app.listen(process.env.PORT ?? 8000);

@@ -1,16 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  OneToMany,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Product } from './product.entity';
+import { Brand } from './brand.entity';
 
 @Entity('categories')
 export class Category {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
   @Column()
   name: string;
 
-  @Column({ nullable: true, default: 0 })
-  parent_id: number;
+  @Column({ type: 'bigint', nullable: true })
+  parent_id: string | null;
 
   @Column({ nullable: true, default: 0 })
   sort: number;
@@ -35,4 +43,20 @@ export class Category {
 
   @OneToMany(() => Product, (product) => product.category)
   products: Product[];
+
+  @OneToMany(() => Brand, (brand) => brand.category)
+  brands: Brand[];
+
+  @ManyToOne(() => Category, (category) => category.children, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({
+    name: 'parent_id',
+    foreignKeyConstraintName: 'fk_categories_parent',
+  })
+  parent: Category | null;
+
+  @OneToMany(() => Category, (category) => category.parent)
+  children: Category[];
 }

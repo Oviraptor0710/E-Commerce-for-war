@@ -9,9 +9,11 @@ import { UserFollow } from '../follow/entities/user-follow.entity';
 import { UserBlock } from '../blocks/entities/user-block.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, UserCode, Order, UserFollow, UserBlock])],
+  imports: [
+    TypeOrmModule.forFeature([User, UserCode, Order, UserFollow, UserBlock]),
+  ],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService, TypeOrmModule],
 })
-export class UsersModule { }
+export class UsersModule {}

@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsString, Max, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SetRateDto {
   @ApiProperty()
-  @IsInt()
-  user_id: number;
+  @IsPositiveBigIntId()
+  user_id: string;
 
   @ApiProperty()
   @IsInt()
@@ -17,12 +18,10 @@ export class SetRateDto {
   content: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  product_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  product_id?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  purchase_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  purchase_id?: string;
 }

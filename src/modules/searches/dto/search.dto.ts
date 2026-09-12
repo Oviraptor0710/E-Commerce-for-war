@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SearchDto {
   @ApiPropertyOptional()
@@ -9,13 +10,13 @@ export class SearchDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  category_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  category_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  brand_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  brand_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

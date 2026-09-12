@@ -1,4 +1,4 @@
-import { Allow } from "class-validator";
+import { Allow } from 'class-validator';
 
 export class GetRewardHistoryDto {
   @Allow()

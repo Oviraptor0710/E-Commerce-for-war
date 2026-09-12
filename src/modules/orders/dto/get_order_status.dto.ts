@@ -1,5 +1,5 @@
-import { IsNumber, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetOrderStatusDto {
   /*@ApiProperty({
@@ -11,7 +11,6 @@ export class GetOrderStatusDto {
   @ApiProperty({
     description: 'mã đơn hàng',
   })
-  @IsNotEmpty()
-  @IsNumber()
-  purchase_id: number;
+  @IsPositiveBigIntId()
+  purchase_id: string;
 }

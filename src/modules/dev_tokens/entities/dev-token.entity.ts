@@ -12,12 +12,12 @@ import {
   
   @Entity('dev_tokens')
   export class DevToken {
-    @PrimaryGeneratedColumn()
-    id: number;
+    @PrimaryGeneratedColumn({ type: 'bigint' })
+    id: string;
   
     @Index()
-    @Column({ type: 'int' })
-    user_id: number;
+    @Column({ type: 'bigint' })
+    user_id: string;
   
     @ManyToOne(() => User, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'user_id' })

@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetListProductsDto {
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  category_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  category_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -14,8 +15,8 @@ export class GetListProductsDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsInt()
-  brand_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  brand_id?: string;
 
   @ApiPropertyOptional({
     description: '0: all size',
@@ -63,8 +64,8 @@ export class GetListProductsDto {
     description: 'last id trả về lần trước',
   })
   @IsOptional()
-  @IsInt()
-  last_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  last_id?: string;
 
   @ApiProperty()
   @IsInt()

@@ -1,22 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsString,
-  IsNumber,
   IsArray,
   IsNotEmpty,
   MaxLength,
-  Min,
   ValidateNested,
   IsUrl,
   IsOptional,
 } from 'class-validator';
-import * as classTransformer from 'class-transformer';
+import { Type } from 'class-transformer';
 import { CreateProductVariantDto } from './create_productVariants.dto';
-const Type = (classTransformer as any).Type;
+import { IsPositiveBigIntId } from '../../../common/validation';
 export class VideoDto {
   @ApiProperty({
-    description: 'https://example.com/video.mp4',
-    example: 'https://example.com/video.mp4',
+    type: String,
+    description: 'Đường dẫn video',
   })
   @IsUrl()
   @IsString()
@@ -25,8 +23,8 @@ export class VideoDto {
 }
 export class CreateProductDto {
   @ApiProperty({
+    type: String,
     description: 'Product name',
-    example: 'Name',
     maxLength: 255,
   })
   @IsString({ message: '1003' })
@@ -35,27 +33,16 @@ export class CreateProductDto {
   title: string;
 
   @ApiProperty({
-    description: 'price',
-    example: 100000.2,
-    minimum: 0,
-  })
-  @IsNotEmpty({ message: '1002' })
-  @IsNumber({}, { message: '1003' })
-  @Min(0, { message: '1004' })
-  @Type(() => Number)
-  price: number;
-
-  @ApiProperty({
+    type: String,
     description: 'Product description',
-    example: 'description',
   })
   @IsString({ message: '1003' })
   @IsNotEmpty({ message: '1002' })
   description: string;
 
   @ApiProperty({
-    description: 'Product image url',
-    example: 'https://example.com/image.mp4',
+    type: [String],
+    description: 'Product image urls',
     required: false,
   })
   @IsArray({ message: '1003' })
@@ -65,12 +52,11 @@ export class CreateProductDto {
   image_urls?: string[];
 
   @ApiProperty({
+    type: String,
     description: 'ID of the brand',
-    example: 1,
   })
-  @IsNumber({}, { message: '1003' })
-  @IsOptional()
-  brand_id: number;
+  @IsPositiveBigIntId({ required: false })
+  brand_id: string;
 
   @ApiProperty({
     type: [CreateProductVariantDto],
@@ -83,21 +69,20 @@ export class CreateProductDto {
   variants: CreateProductVariantDto[];
 
   @ApiProperty({
+    type: String,
     description: 'category',
-    example: 1,
   })
-  @IsNumber({}, { message: '1003' })
-  @IsOptional()
-  category_id: number;
+  @IsPositiveBigIntId()
+  category_id: string;
 
   @ApiProperty({
-    description: 'ID of the shipping address (Warehouse)',
-    example: 5,
+    type: String,
+    description: 'ID of the seller shipping address',
   })
-  @IsNotEmpty({ message: '1002' })
-  @IsNumber({}, { message: '1003' })
-  ship_from_id: number;
+  @IsPositiveBigIntId()
+  ship_from_id: string;
   @ApiProperty({
+    type: [VideoDto],
     description: 'Đường link video và thumb',
   })
   @IsArray()

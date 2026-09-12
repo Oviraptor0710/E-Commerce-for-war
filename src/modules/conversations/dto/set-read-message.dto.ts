@@ -1,12 +1,27 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { Allow, IsNotEmpty } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsPositiveBigIntId,
+  IsPositiveIntId,
+} from '../../../common/validation';
 
 export class SetReadMessageDto {
-  @ApiProperty({
-    description: "ID người hội thoại cùng",
-    example: 1
+  @ApiPropertyOptional({
+    description:
+      'ID conversation dạng chuỗi để giữ nguyên độ chính xác của BIGINT',
   })
-  @IsNotEmpty({ message: '1002' })
-  @Allow()
-  partner_id: number;
+  @IsPositiveBigIntId({ required: false })
+  conversation_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID người hội thoại cùng; hỗ trợ tương thích API cũ',
+  })
+  @IsPositiveBigIntId({ required: false })
+  partner_id?: string;
+
+  @ApiProperty({
+    description:
+      'ID tin nhắn cuối cùng thực sự hiển thị cho người đọc; truyền dạng chuỗi để không mất độ chính xác BIGINT',
+  })
+  @IsPositiveBigIntId()
+  last_read_message_id: string;
 }

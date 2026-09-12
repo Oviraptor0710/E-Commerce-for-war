@@ -5,11 +5,13 @@ import { AuthGuard } from '../../common/auth/guards/auth.guard';
 import { APP_RESPONSE, buildResponse } from '../constants/response.constants';
 import { GetRatesDto } from './dto/get_rates.dto';
 import { SetRateDto } from './dto/set_rate.dto';
+import { ApiDataResponse } from '../../common/swagger/api-data-response.decorator';
+import { RateListItemResponseDto, SetRateResponseDataDto } from './dto/rate-response.dto';
 
 interface RequestWithUser extends Request {
   user: {
-    id?: number;
-    userId?: number;
+    id?: string;
+    userId?: string;
   };
 }
 
@@ -19,6 +21,7 @@ export class RatesController {
 
   @Post('get_rates')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: RateListItemResponseDto, isArray: true })
   async getRates(@Req() req: RequestWithUser, @Body() dto: GetRatesDto) {
     try {
       const authUserId = req.user?.userId ?? req.user?.id;
@@ -65,6 +68,7 @@ export class RatesController {
 
   @Post('set_rates')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: SetRateResponseDataDto })
   async setRates(@Req() req: RequestWithUser, @Body() dto: SetRateDto) {
     try {
       const reviewerId = req.user?.userId ?? req.user?.id;

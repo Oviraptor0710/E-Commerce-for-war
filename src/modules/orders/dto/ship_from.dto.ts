@@ -1,14 +1,12 @@
-import {
-  IsDefined,
-  IsOptional,
-  IsNumber,
-  IsString,
-  Min,
-} from 'class-validator';
-import * as classTransformer from 'class-transformer';
+import { IsDefined, IsOptional, IsNumber, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsPositiveBigIntId,
+  ParsePositiveBigIntIdPipe,
+} from '../../../common/validation';
 
-const Type = (classTransformer as any).Type;
+const positiveBigIntIdPipe = new ParsePositiveBigIntIdPipe();
 
 export class GetShipFromQueryDto {
   @ApiProperty({
@@ -21,14 +19,14 @@ export class GetShipFromQueryDto {
   @IsNumber({}, { message: '1003' })
   level: number = 0;
 
-  @ApiProperty({ example: 0 })
+  @ApiProperty({ type: Number })
   @IsDefined({ message: '1002' })
   @Type(() => Number)
   @IsNumber({}, { message: '1003' })
   @Min(0, { message: '1004' })
   index: number;
 
-  @ApiProperty({ example: 10 })
+  @ApiProperty({ type: Number })
   @IsDefined({ message: '1002' })
   @Type(() => Number)
   @IsNumber({}, { message: '1003' })
@@ -37,9 +35,10 @@ export class GetShipFromQueryDto {
 
   @ApiProperty({
     description: 'mã tỉnh hoặc mã phường',
-    example: '1',
   })
-  @IsDefined({ message: '1002' })
-  @IsString({ message: '1003' })
+  @Transform(({ value }: { value: unknown }) =>
+    positiveBigIntIdPipe.transform(value),
+  )
+  @IsPositiveBigIntId()
   parent_id: string;
 }

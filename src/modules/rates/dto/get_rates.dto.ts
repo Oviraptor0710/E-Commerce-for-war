@@ -1,21 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetRatesDto {
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  user_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  user_id?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  product_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  product_id?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  purchase_id?: number;
+  @IsPositiveBigIntId({ required: false })
+  purchase_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -1,19 +1,26 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
 import { Wallet } from './wallet.entity';
 
 @Entity('transactions')
 export class Transaction {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
-  @Column()
-  wallet_id: number;
+  @Column({ type: 'bigint' })
+  wallet_id: string;
 
   @Column({ nullable: true })
   type: string;
 
   @Column('decimal', { nullable: true })
-  amount: number;
+  amount: string;
 
   @Column({ nullable: true })
   status: string;
@@ -24,7 +31,10 @@ export class Transaction {
   @CreateDateColumn()
   created_at: Date;
 
-  @ManyToOne(() => Wallet, wallet => wallet.transactions)
-  @JoinColumn({ name: 'wallet_id' })
+  @ManyToOne(() => Wallet, (wallet) => wallet.transactions)
+  @JoinColumn({
+    name: 'wallet_id',
+    foreignKeyConstraintName: 'fk_transactions_wallet',
+  })
   wallet: Wallet;
 }

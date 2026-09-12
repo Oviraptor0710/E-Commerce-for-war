@@ -14,7 +14,7 @@ export class SearchesService {
     return keyword.trim().replace(/\s+/g, ' ');
   }
 
-  async saveSearch(userId: number, keyword: string) {
+  async saveSearch(userId: string, keyword: string) {
     const normalizedKeyword = this.normalizeKeyword(keyword);
 
     if (!normalizedKeyword) {
@@ -34,7 +34,7 @@ export class SearchesService {
     return await this.savedSearchRepository.save(saved);
   }
 
-  async getListSavedSearch(userId: number, index: number, count: number) {
+  async getListSavedSearch(userId: string, index: number, count: number) {
     return await this.savedSearchRepository.find({
       where: { user_id: userId },
       order: { created_at: 'DESC' },
@@ -43,8 +43,8 @@ export class SearchesService {
     });
   }
 
-  async delSavedSearch(userId: number, searchId?: number, keyword?: string) {
-    if (searchId === 0) {
+  async delSavedSearch(userId: string, searchId?: string, keyword?: string) {
+    if (searchId === '0') {
       await this.savedSearchRepository.delete({ user_id: userId });
       return true;
     }

@@ -1,7 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetOrderTimelineDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   purchase_id: string;
 }

@@ -1,9 +1,11 @@
-import { Allow } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
 export class GetListBlocksDto {
-  @Allow()
-  index!: number | string;
+  @IsInt({ message: '1003' })
+  @Min(0, { message: '1004' })
+  index!: number;
 
-  @Allow()
-  count!: number | string;
+  @IsInt({ message: '1003' })
+  @Min(1, { message: '1004' })
+  count!: number;
 }

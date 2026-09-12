@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["node", "express", "jest"],
+    "types": ["node", "express", "multer", "jest"],
     "module": "commonjs",
     "moduleResolution": "node",
     "resolveJsonModule": true,

@@ -24,6 +24,7 @@ import { RatesModule } from './modules/rates/rates.module';
 import { SearchesModule } from './modules/searches/searches.module';
 import { JwtModule } from '@nestjs/jwt';
 import { RewardsModule } from './modules/rewards/rewards.module';
+import { SellersModule } from './modules/sellers/sellers.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -35,7 +36,6 @@ import { RewardsModule } from './modules/rewards/rewards.module';
     }),
     UsersModule,
     ProductsModule,
-    OrdersModule,
     newsModule,
     AuthModule,
     RedisModule,
@@ -52,6 +52,7 @@ import { RewardsModule } from './modules/rewards/rewards.module';
     RatesModule,
     SearchesModule,
     RewardsModule,
+    SellersModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -61,9 +62,6 @@ import { RewardsModule } from './modules/rewards/rewards.module';
           expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') as any,
         },
       }),
-    }),
-    ConfigModule.forRoot({
-      isGlobal: true, // Để các module khác (như AuthModule) không cần import lại
     }),
   ],
   controllers: [AppController],

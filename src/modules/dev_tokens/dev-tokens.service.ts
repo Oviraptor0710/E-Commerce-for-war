@@ -11,7 +11,7 @@ export class DevTokensService {
   ) {}
 
   async upsertDevToken(
-    userId: number,
+    userId: string,
     payload: {
       devtype: string;
       devtoken: string;

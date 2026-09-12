@@ -11,11 +11,14 @@ import { SaveSearchDto } from './dto/save_search.dto';
 import { GetListSavedSearchDto } from './dto/get_list_saved_search.dto';
 import { SearchDto } from './dto/search.dto';
 import { DelSavedSearchDto } from './dto/del_saved_search.dto';
+import { ApiDataResponse } from '../../common/swagger/api-data-response.decorator';
+import { SavedSearchResponseDto } from './dto/saved-search-response.dto';
+import { ProductSearchResponseDto } from '../products/dto/product-response.dto';
 
 interface RequestWithUser extends Request {
   user: {
-    id?: number;
-    userId?: number;
+    id?: string;
+    userId?: string;
   };
 }
 
@@ -28,6 +31,7 @@ export class SearchesController {
 
   @Post('save_search')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: SavedSearchResponseDto })
   async saveSearch(
     @Req() req: RequestWithUser,
     @Body() dto: SaveSearchDto,
@@ -50,6 +54,7 @@ export class SearchesController {
 
   @Post('get_list_saved_search')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: SavedSearchResponseDto, isArray: true })
   async getListSavedSearch(
     @Req() req: RequestWithUser,
     @Body() dto: GetListSavedSearchDto,
@@ -80,6 +85,7 @@ export class SearchesController {
 
   @Post('search')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: ProductSearchResponseDto, isArray: true })
   async search(
     @Req() req: RequestWithUser,
     @Body() dto: SearchDto,
@@ -129,6 +135,7 @@ export class SearchesController {
 
   @Post('del_saved_search')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201 })
   async delSavedSearch(
     @Req() req: RequestWithUser,
     @Body() dto: DelSavedSearchDto,

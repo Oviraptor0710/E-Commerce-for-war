@@ -3,17 +3,18 @@ import {
   IsArray,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class CreateOrderItemDto {
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
+
+  @IsPositiveBigIntId()
+  variant_id: string;
 
   @Type(() => Number)
   @IsInt()
@@ -27,10 +28,8 @@ export class CreateOrderDto {
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
 
-  @Type(() => Number)
-  @IsInt()
-  @IsNotEmpty()
-  address_id: number;
+  @IsPositiveBigIntId()
+  address_id: string;
 
   // Theo đặc tả:
   // 0 = tạo đơn từ giỏ hàng

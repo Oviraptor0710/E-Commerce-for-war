@@ -1,5 +1,6 @@
 import { IsNumber, IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetUserListingsDto {
   @ApiProperty({
@@ -17,8 +18,8 @@ export class GetUserListingsDto {
   @ApiProperty({
     description: 'user_id',
   })
-  @IsOptional()
-  user_id: number;
+  @IsPositiveBigIntId({ required: false })
+  user_id: string;
 
   @ApiProperty({
     description: 'Từ khóa tìm kiếm',
@@ -30,7 +31,6 @@ export class GetUserListingsDto {
   @ApiProperty({
     description: 'thuộc tính sản phẩm',
   })
-  @IsOptional()
-  @IsNumber()
-  category_id: number;
+  @IsPositiveBigIntId({ required: false })
+  category_id: string;
 }

@@ -1,35 +1,45 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { Allow, IsNotEmpty } from "class-validator";
-import { APP_RESPONSE } from "../../constants/response.constants";
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
+import { MessageType } from '../enums/message-type.enum';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SendMessageDto {
-  @ApiProperty({
-    description: "ID người nhận tin nhắn",
-    example: 1
-  })
-  @IsNotEmpty({ message: "1002" })
-  @Allow()
-  to_id: number;
+  @ApiProperty({ type: String, description: 'ID người nhận tin nhắn' })
+  @IsPositiveBigIntId()
+  to_id: string;
 
   @ApiProperty({
-    description: "Nội dung tin nhắn",
-    example: "hello bae"
+    description:
+      'ID duy nhất do client tạo; gửi lại cùng ID không tạo trùng tin nhắn',
   })
-  @Allow()
-  message: string;
+  @IsString({ message: '1003' })
+  @IsNotEmpty({ message: '1002' })
+  @MaxLength(100, { message: '1004' })
+  client_message_id: string;
 
-  @ApiProperty({
-    description: "Kiểu tin nhắn",
-    example: "text, image, video, file"
-  })
-  @IsNotEmpty({ message: "1002" })
-  @Allow()
-  type_message: string;
+  @ApiPropertyOptional({ description: 'Nội dung hoặc URL media' })
+  @IsOptional()
+  @IsString({ message: '1003' })
+  @MaxLength(10000, { message: '1004' })
+  message?: string;
 
-  @ApiProperty({
-    description: "ID của sản phẩm trong đoạn hội thoại",
-    example: 1
+  @ApiPropertyOptional({
+    enum: MessageType,
+    description: 'Kiểu tin nhắn; không cần truyền khi gửi product_id',
   })
-  @Allow()
-  product_id!: number;
+  @ValidateIf((dto: SendMessageDto) => dto.product_id === undefined)
+  @IsEnum(MessageType, { message: '1004' })
+  @IsNotEmpty({ message: '1002' })
+  type_message?: MessageType;
+
+  @ApiPropertyOptional({ type: String, description: 'ID sản phẩm được chia sẻ' })
+  @IsPositiveBigIntId({ required: false })
+  product_id?: string;
 }

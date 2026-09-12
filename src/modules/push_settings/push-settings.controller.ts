@@ -7,28 +7,30 @@ import { PushSettingsService } from './push-settings.service';
 import { SetPushSettingDto } from './dto/set-push-setting.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '../../common/auth/guards/auth.guard';
+import { ApiDataResponse } from '../../common/swagger/api-data-response.decorator';
+import { PushSettingResponseDataDto } from './dto/push-setting-response.dto';
 
-@ApiBearerAuth("JWT-auth")
+@ApiBearerAuth('JWT-auth')
 @UseGuards(AuthGuard)
 @Controller('push_settings')
 export class PushSettingsController {
-  constructor(
-    private readonly pushSettingsService: PushSettingsService,
-  ) { }
+  constructor(private readonly pushSettingsService: PushSettingsService) {}
 
   @Post('get_push_setting')
+  @ApiDataResponse({ status: 201, type: PushSettingResponseDataDto })
   async getPushSetting(@Req() req: any) {
     try {
       const userId = req.user.userId ?? req.user.id;
 
-      const setting = await this.pushSettingsService.findOrCreateByUserId(userId);
+      const setting =
+        await this.pushSettingsService.findOrCreateByUserId(userId);
 
       return buildResponse(APP_RESPONSE.OK, {
-        like: String(setting.like),
-        comment: String(setting.comment),
-        transaction: String(setting.transaction),
-        announcement: String(setting.announcement),
-        sound_on: String(setting.sound_on),
+        like: setting.like,
+        comment: setting.comment,
+        transaction: setting.transaction,
+        announcement: setting.announcement,
+        sound_on: setting.sound_on,
         sound_default: setting.sound_default,
       });
     } catch (error) {
@@ -38,6 +40,7 @@ export class PushSettingsController {
   }
 
   @Post('set_push_setting')
+  @ApiDataResponse({ status: 201, type: String })
   async setPushSetting(@Req() req: any, @Body() dto: SetPushSettingDto) {
     try {
       const userId = req.user.userId ?? req.user.id;

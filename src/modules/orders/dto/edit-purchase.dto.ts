@@ -1,8 +1,8 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class EditPurchaseDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   id: string;
 
   @IsOptional()
@@ -13,8 +13,7 @@ export class EditPurchaseDto {
   @IsString()
   address?: string;
 
-  @IsOptional()
-  @IsString()
+  @IsPositiveBigIntId({ required: false })
   address_id?: string;
 
   @IsOptional()

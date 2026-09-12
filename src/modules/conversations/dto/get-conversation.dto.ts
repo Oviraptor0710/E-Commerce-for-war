@@ -1,38 +1,32 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { Allow, IsInt, IsNotEmpty, Min } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, Max, Min, IsInt } from 'class-validator';
+import {
+  IsPositiveBigIntId,
+  IsPositiveIntId,
+} from '../../../common/validation';
 
 export class GetConvDto {
-  @ApiProperty({
-    description: "ID người nhận tin nhắn",
-    example: 0
-  })
-  @Allow()
-  partner_id!: number;
+  @ApiPropertyOptional({ type: String, description: 'ID người hội thoại cùng' })
+  @IsPositiveBigIntId({ required: false })
+  partner_id?: string;
 
-  @ApiProperty({
-    description: "ID đoạn hội thoại",
-    example: 0
+  @ApiPropertyOptional({
+    description:
+      'ID conversation dạng chuỗi để giữ nguyên độ chính xác của BIGINT',
   })
-  @Allow()
-  conversation_id!: number;
+  @IsPositiveBigIntId({ required: false })
+  conversation_id?: string;
 
-  @ApiProperty({
-    description: "Số thứ tự trang tin nhắn tải về (phân trang)",
-    example: 1
-  })
-  @IsNotEmpty({ message: "1002" })
-  @IsInt({ message: "1003" })
-  @Min(0, { message: "1004" })
-  @Allow()
+  @ApiProperty({ type: Number, description: 'Số thứ tự trang, bắt đầu từ 0' })
+  @IsNotEmpty({ message: '1002' })
+  @IsInt({ message: '1003' })
+  @Min(0, { message: '1004' })
   index: number;
 
-  @ApiProperty({
-    description: "Số lượng tin nhắn trong một trang",
-    example: 10
-  })
-  @IsNotEmpty({ message: "1002" })
-  @IsInt({ message: "1003" })
-  @Min(1, { message: "1004" })
-  @Allow()
+  @ApiProperty({ type: Number, description: 'Số tin nhắn trên một trang' })
+  @IsNotEmpty({ message: '1002' })
+  @IsInt({ message: '1003' })
+  @Min(1, { message: '1004' })
+  @Max(100, { message: '1004' })
   count: number;
 }

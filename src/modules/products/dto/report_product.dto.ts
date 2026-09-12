@@ -1,10 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsString } from 'class-validator';
+import { IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class ReportProductDto {
   @ApiProperty()
-  @IsInt()
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
 
   @ApiProperty()
   @IsString()

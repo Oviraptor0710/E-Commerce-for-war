@@ -1,9 +1,9 @@
-import { IsString, IsEmail, IsOptional } from "class-validator";
+import { IsString, IsEmail, IsOptional } from 'class-validator';
 
 export class SetUserInfoDto {
   @IsOptional()
   @IsEmail()
-  email!: string;
+  email!: string | null;
 
   @IsOptional()
   @IsString()

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { IsNonNegativeBigIntId } from '../../../common/validation';
 
 export class DelSavedSearchDto {
   @ApiPropertyOptional()
@@ -11,6 +12,6 @@ export class DelSavedSearchDto {
     description: 'Nếu search_id = 0 thì xóa toàn bộ lịch sử tìm kiếm',
   })
   @IsOptional()
-  @IsInt()
-  search_id?: number;
+  @IsNonNegativeBigIntId({ required: false })
+  search_id?: string;
 }

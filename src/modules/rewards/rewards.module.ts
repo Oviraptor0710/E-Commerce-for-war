@@ -6,12 +6,24 @@ import { User } from '../users/entities/user.entity';
 import { RewardProof } from './entities/reward_proof.entity';
 import { RewardAppeal } from './entities/reward_appeal.entity';
 import { RewardRule } from './entities/reward_rule.entity';
-import { Wallet } from '../wallets/entities/wallet.entity';
+import { WalletsModule } from '../wallets/wallets.module';
+import { ProofAchievement } from './entities/proof_achievement.entity';
+import { AiEvaluationLog } from './entities/ai_evaluation_log.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Wallet, RewardProof, RewardAppeal, RewardRule])],
+  imports: [
+    WalletsModule,
+    TypeOrmModule.forFeature([
+      User,
+      RewardProof,
+      RewardAppeal,
+      RewardRule,
+      ProofAchievement,
+      AiEvaluationLog,
+    ]),
+  ],
   controllers: [RewardsController],
   providers: [RewardsService],
   exports: [RewardsService, TypeOrmModule],
 })
-export class RewardsModule { }
+export class RewardsModule {}

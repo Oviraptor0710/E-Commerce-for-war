@@ -2,26 +2,23 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  ManyToOne,
   OneToOne,
   JoinColumn,
-  ManyToOne,
 } from 'typeorm';
 import { Order } from './order.entity';
-import { Address } from '../../orders/entities/address.entity';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('shipping')
 export class Shipping {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
-  @Column({ type: 'int' })
-  order_id: number;
+  @Column({ type: 'bigint' })
+  order_id: string;
 
-  @Column({ type: 'int', nullable: true })
-  address_id: number | null;
-
-  @Column({ type: 'int', nullable: true })
-  shipper_id: number | null;
+  @Column({ type: 'bigint', nullable: true })
+  shipper_id: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   status: string | null;
@@ -30,10 +27,16 @@ export class Shipping {
   tracking_code: string | null;
 
   @OneToOne(() => Order, (order) => order.shipping)
-  @JoinColumn({ name: 'order_id' })
+  @JoinColumn({
+    name: 'order_id',
+    foreignKeyConstraintName: 'fk_shipping_order',
+  })
   order: Order;
 
-  @ManyToOne(() => Address)
-  @JoinColumn({ name: 'address_id' })
-  address: Address;
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({
+    name: 'shipper_id',
+    foreignKeyConstraintName: 'fk_shipping_shipper',
+  })
+  shipper: User | null;
 }

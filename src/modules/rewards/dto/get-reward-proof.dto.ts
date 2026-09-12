@@ -1,7 +1,6 @@
-import { Allow, IsInt } from "class-validator";
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetRewardProofDto {
-  @Allow()
-  @IsInt({ message: "1002" })
-  reward_id: number;
+  @IsPositiveBigIntId()
+  reward_id: string;
 }

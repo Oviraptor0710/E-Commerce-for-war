@@ -1,37 +1,33 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserBlock } from '../blocks/entities/user-block.entity';
+import { DevToken } from '../dev_tokens/entities/dev-token.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { Product } from '../products/entities/product.entity';
+import { User } from '../users/entities/user.entity';
+import { ConversationsController } from './conversations.controller';
+import { ConversationsRealtimeModule } from './conversations-realtime.module';
+import { ConversationsService } from './conversations.service';
+import { ConversationParticipant } from './entities/conversation-participant.entity';
 import { Conversation } from './entities/conversation.entity';
 import { Message } from './entities/message.entity';
-import { ConversationsService } from './conversations.service';
-import { ConversationsController } from './conversations.controller';
-import { User } from '../users/entities/user.entity';
-import { Product } from '../products/entities/product.entity';
-import { UserBlock } from '../blocks/entities/user-block.entity';
-import { ConversationsGateway } from './conversations.gateway';
-import { UsersService } from '../users/users.service';
-import { Order } from '../orders/entities/order.entity';
-import { UserFollow } from '../follow/entities/user-follow.entity';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { DevToken } from '../dev_tokens/entities/dev-token.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Conversation, Message, Product, UserBlock, Order, UserFollow, DevToken]),
-    ConfigModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'dev-secret'),
-        signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN', '7d') as any,
-        },
-      }),
-    }),
+    TypeOrmModule.forFeature([
+      User,
+      Conversation,
+      ConversationParticipant,
+      Message,
+      Product,
+      UserBlock,
+      DevToken,
+    ]),
+    ConversationsRealtimeModule,
+    NotificationsModule,
   ],
   controllers: [ConversationsController],
-  providers: [ConversationsService, UsersService, ConversationsGateway],
+  providers: [ConversationsService],
   exports: [ConversationsService, TypeOrmModule],
 })
-export class ConversationsModule { }
+export class ConversationsModule {}

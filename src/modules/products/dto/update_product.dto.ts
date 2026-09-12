@@ -1,19 +1,10 @@
 import { PartialType, ApiProperty } from '@nestjs/swagger';
 import { CreateProductDto } from './create_product.dto';
-import {
-  IsString,
-  IsArray,
-  MaxLength,
-  IsOptional,
-  IsNumber,
-  Min,
-} from 'class-validator';
-import * as classTransformer from 'class-transformer';
-const Type = (classTransformer as any).Type;
+import { IsString, IsArray, MaxLength, IsOptional } from 'class-validator';
 export class UpdateProductDto extends PartialType(CreateProductDto) {
   @ApiProperty({
     description: 'delete product image url',
-    example: 'https://...',
+    type: [String],
     required: false,
   })
   @IsArray()
@@ -23,13 +14,12 @@ export class UpdateProductDto extends PartialType(CreateProductDto) {
   image_urls_del?: string[];
 
   @ApiProperty({
-    description: 'price_discount',
-    example: 100000.2,
-    minimum: 0,
+    description: 'Khóa idempotency cho lần điều chỉnh tồn kho này',
+    required: false,
+    maxLength: 120,
   })
-  @IsNumber({}, { message: '1003' })
-  @Min(0, { message: '1004' })
   @IsOptional()
-  @Type(() => Number)
-  price_discount: number;
+  @IsString()
+  @MaxLength(120)
+  idempotency_key?: string;
 }

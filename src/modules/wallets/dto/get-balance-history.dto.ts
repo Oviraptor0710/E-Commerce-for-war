@@ -1,11 +1,11 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
 export class GetBalanceHistoryDto {
-  @IsString()
-  @IsNotEmpty()
-  index: string;
+  @IsInt({ message: '1003' })
+  @Min(0, { message: '1004' })
+  index: number;
 
-  @IsString()
-  @IsNotEmpty()
-  count: string;
+  @IsInt({ message: '1003' })
+  @Min(1, { message: '1004' })
+  count: number;
 }

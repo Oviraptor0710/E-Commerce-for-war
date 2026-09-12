@@ -1,9 +1,12 @@
-import { IsInt, IsNotEmpty, Min } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class AddCartDto {
-  @IsInt()
-  @IsNotEmpty()
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
+
+  @IsPositiveBigIntId()
+  variant_id: string;
 
   @IsInt()
   @Min(1)

@@ -1,13 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { User } from './user.entity';
 
 @Entity('user_codes')
 export class UserCode {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
 
-  @Column()
-  user_id: number;
+  @Column({ type: 'bigint' })
+  user_id: string;
 
   @Column({ nullable: true })
   code: string;
@@ -15,7 +21,7 @@ export class UserCode {
   @Column({ type: 'timestamp', nullable: true })
   expired_at: Date;
 
-  @ManyToOne(() => User, user => user.user_codes)
+  @ManyToOne(() => User, (user) => user.user_codes)
   @JoinColumn({ name: 'user_id' })
   user: User;
 }

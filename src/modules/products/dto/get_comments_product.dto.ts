@@ -1,18 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
+import { IsInt, Max, Min } from 'class-validator';
 
 export class GetCommentsProductDto {
   @ApiProperty()
-  @IsInt()
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
 
   @ApiProperty()
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: '1003' })
+  @Min(0, { message: '1004' })
   index: number;
 
   @ApiProperty()
-  @IsInt()
-  @Min(1)
+  @IsInt({ message: '1003' })
+  @Min(1, { message: '1004' })
+  @Max(50, { message: '1004' })
   count: number;
 }

@@ -1,9 +1,11 @@
-import { Allow } from 'class-validator';
+import { IsIn, IsInt } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SetUserBlockDto {
-  @Allow()
-  user_id!: number | string;
+  @IsPositiveBigIntId()
+  user_id!: string;
 
-  @Allow()
-  type!: number | string; // 0 = block, 1 = unblock
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  type!: number; // 0 = block, 1 = unblock
 }

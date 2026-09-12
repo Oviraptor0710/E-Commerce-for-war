@@ -1,8 +1,9 @@
-import { Allow } from "class-validator";
+import { Allow } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class CreateRewardAppealDto {
-  @Allow()
-  reward_id: number;
+  @IsPositiveBigIntId()
+  reward_id: string;
 
   @Allow()
   reason: string;

@@ -1,8 +1,6 @@
-import { Allow, IsInt, IsNotEmpty, Min } from "class-validator";
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SetReadNotificationDto {
-  @Allow()
-  @IsNotEmpty({ message: "1002" })
-  @IsInt({ message: "1003" })
-  notification_id: number;
+  @IsPositiveBigIntId()
+  notification_id: string;
 }

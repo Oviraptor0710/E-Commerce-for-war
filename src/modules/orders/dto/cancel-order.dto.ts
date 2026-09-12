@@ -1,10 +1,11 @@
-import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class CancelOrderDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   id: string;
 
+  @IsOptional()
   @IsString()
   reason?: string;
 }

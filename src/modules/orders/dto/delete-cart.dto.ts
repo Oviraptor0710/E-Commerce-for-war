@@ -1,7 +1,6 @@
-import { IsInt, IsNotEmpty } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class DeleteCartDto {
-  @IsInt()
-  @IsNotEmpty()
-  cart_item_id: number;
+  @IsPositiveBigIntId()
+  cart_item_id: string;
 }

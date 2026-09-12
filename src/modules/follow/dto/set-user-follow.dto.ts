@@ -1,9 +1,11 @@
-import { Allow } from 'class-validator';
+import { IsIn, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SetUserFollowDto {
-  @Allow()
-  followee_id!: number | string;
+  @IsPositiveBigIntId()
+  followee_id!: string;
 
-  @Allow()
+  @IsString({ message: '1003' })
+  @IsIn(['follow', 'unfollow'], { message: '1004' })
   action!: string;
 }

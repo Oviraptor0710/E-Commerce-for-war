@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class LikeProductDto {
   @ApiProperty()
-  @IsInt()
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
 }

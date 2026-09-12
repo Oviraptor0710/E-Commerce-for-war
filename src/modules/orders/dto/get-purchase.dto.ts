@@ -1,7 +1,6 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetPurchaseDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   id: string;
 }

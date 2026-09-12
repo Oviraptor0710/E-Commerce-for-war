@@ -1,31 +1,31 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 //Header để Authorization: Bearer <token>
 
 export class SetPushSettingDto {
   @IsOptional()
-  @IsString({ message: '1003' })
-  @IsIn(['0', '1'], { message: '1004' })
-  like?: string;
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  like?: number;
 
   @IsOptional()
-  @IsString({ message: '1003' })
-  @IsIn(['0', '1'], { message: '1004' })
-  comment?: string;
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  comment?: number;
 
   @IsOptional()
-  @IsString({ message: '1003' })
-  @IsIn(['0', '1'], { message: '1004' })
-  transaction?: string;
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  transaction?: number;
 
   @IsOptional()
-  @IsString({ message: '1003' })
-  @IsIn(['0', '1'], { message: '1004' })
-  announcement?: string;
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  announcement?: number;
 
   @IsOptional()
-  @IsString({ message: '1003' })
-  @IsIn(['0', '1'], { message: '1004' })
-  sound_on?: string;
+  @IsInt({ message: '1003' })
+  @IsIn([0, 1], { message: '1004' })
+  sound_on?: number;
 
   @IsOptional()
   @IsString({ message: '1003' })

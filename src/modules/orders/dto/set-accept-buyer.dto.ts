@@ -1,12 +1,11 @@
-import { IsNotEmpty, IsString, IsInt } from 'class-validator';
+import { IsInt } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SetAcceptBuyerDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   purchase_id: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   buyer_id: string;
 
   @IsInt()

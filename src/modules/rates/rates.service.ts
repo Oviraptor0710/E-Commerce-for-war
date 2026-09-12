@@ -22,20 +22,20 @@ export class RatesService {
     private readonly userBlockRepo: Repository<UserBlock>,
 
     @InjectRepository(Order)
-  private readonly orderRepository: Repository<Order>,
+    private readonly orderRepository: Repository<Order>,
 
-  @InjectRepository(OrderItem)
-  private readonly orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemRepository: Repository<OrderItem>,
 
-  @InjectRepository(Product)
-  private readonly productRepository: Repository<Product>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
   ) {}
 
   async validateSetRateInput(
-    targetUserId: number,
-    reviewerId: number,
-    productId?: number,
-    purchaseId?: number,
+    targetUserId: string,
+    reviewerId: string,
+    productId?: string,
+    purchaseId?: string,
   ) {
     const isBlocked = await this.isUserBlocked(reviewerId, targetUserId);
     if (isBlocked) {
@@ -85,7 +85,7 @@ export class RatesService {
     return APP_RESPONSE.OK;
   }
 
-  async isUserBlocked(viewerId?: number, targetUserId?: number) {
+  async isUserBlocked(viewerId?: string, targetUserId?: string) {
     if (!viewerId || !targetUserId) return false;
     if (viewerId === targetUserId) return false;
 
@@ -99,7 +99,7 @@ export class RatesService {
     return !!block;
   }
 
-  async getUserExists(userId: number) {
+  async getUserExists(userId: string) {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .select(['user.id'])
@@ -109,7 +109,7 @@ export class RatesService {
     return user;
   }
 
-  async getProductById(productId?: number) {
+  async getProductById(productId?: string) {
     if (!productId) return null;
 
     return this.productRepository.findOne({
@@ -121,7 +121,7 @@ export class RatesService {
     });
   }
 
-  async getOrderById(orderId?: number) {
+  async getOrderById(orderId?: string) {
     if (!orderId) return null;
 
     return this.orderRepository.findOne({
@@ -134,7 +134,7 @@ export class RatesService {
     });
   }
 
-  async getOrderItemByOrderAndProduct(orderId?: number, productId?: number) {
+  async getOrderItemByOrderAndProduct(orderId?: string, productId?: string) {
     if (!orderId || !productId) return null;
 
     return this.orderItemRepository.findOne({
@@ -151,12 +151,12 @@ export class RatesService {
   }
 
   async getRates(
-    userId: number,
+    userId: string,
     index: number,
     count: number,
     level?: number,
-    productId?: number,
-    purchaseId?: number,
+    productId?: string,
+    purchaseId?: string,
   ) {
     const qb = this.rateRepository
       .createQueryBuilder('rate')
@@ -198,20 +198,20 @@ export class RatesService {
   }
 
   async setRate(
-    userId: number,
-    reviewerId: number,
+    userId: string,
+    reviewerId: string,
     level: number,
     content: string,
-    productId?: number,
-    purchaseId?: number,
-    ) {
+    productId?: string,
+    purchaseId?: string,
+  ) {
     const rate = this.rateRepository.create({
-        user_id: userId,
-        reviewer_id: reviewerId,
-        level,
-        content,
-        product_id: productId,
-        purchase_id: purchaseId,
+      user_id: userId,
+      reviewer_id: reviewerId,
+      level,
+      content,
+      product_id: productId,
+      purchase_id: purchaseId,
     });
 
     return await this.rateRepository.save(rate);

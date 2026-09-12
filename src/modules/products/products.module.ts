@@ -17,6 +17,13 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ElasticsearchModule } from '@nestjs/elasticsearch';
 import { ProductsSearchService } from './products-search.service';
+import { SellerProfile } from '../sellers/entities/seller-profile.entity';
+import { CommentMedia } from './entities/comment-media.entity';
+import { MediaAsset } from '../upload/entities/media-asset.entity';
+import { Order } from '../orders/entities/order.entity';
+import { OrderItem } from '../orders/entities/order_item.entity';
+import { UploadModule } from '../upload/upload.module';
+import { ProductCommentsService } from './product-comments.service';
 
 @Module({
   imports: [
@@ -32,8 +39,14 @@ import { ProductsSearchService } from './products-search.service';
       Category,
       Address,
       DevToken,
+      SellerProfile,
+      CommentMedia,
+      MediaAsset,
+      Order,
+      OrderItem,
     ]),
     NotificationsModule,
+    UploadModule,
     ConfigModule,
     ElasticsearchModule.registerAsync({
       imports: [ConfigModule],
@@ -56,7 +69,7 @@ import { ProductsSearchService } from './products-search.service';
     }),
   ],
   controllers: [ProductsController],
-  providers: [ProductsService, ProductsSearchService],
+  providers: [ProductsService, ProductsSearchService, ProductCommentsService],
   exports: [ProductsService, ProductsSearchService],
 })
-export class ProductsModule { }
+export class ProductsModule {}

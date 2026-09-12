@@ -16,9 +16,9 @@ import { CheckCodeResetPasswordDto } from './dto/check-code-reset-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ChangeInfoAfterSignupDto } from './dto/change-info-after-signup.dto';
+import { UserRole } from '../../modules/users/enums/user-role.enum';
 import { DataSource } from 'typeorm';
 import { Wallet } from '../../modules/wallets/entities/wallet.entity';
-import { INITIAL_WALLET_BALANCE } from '../constants/wallet.constants';
 
 @Injectable()
 export class AuthService {
@@ -35,7 +35,7 @@ export class AuthService {
 
   private buildLoginResponse(user: User, token: string) {
     return buildResponse(APP_RESPONSE.OK, {
-      id: String(user.id),
+      id: user.id,
       username: user.username,
       token,
       avatar: user.avatar,
@@ -118,15 +118,17 @@ export class AuthService {
         phone_number: normalizedPhoneNumber,
         password: hashedPassword,
         uuid: signupDto.uuid,
-        role: 'soldier',
+        role: UserRole.USER,
         username: normalizedPhoneNumber,
+        status: 'active',
       });
 
       const savedUser = await manager.save(User, createdUser);
 
       const createdWallet = manager.create(Wallet, {
         user_id: savedUser.id,
-        balance: INITIAL_WALLET_BALANCE,
+        available_balance: '0.000',
+        pending_balance: '0.000',
       });
 
       const savedWallet = await manager.save(Wallet, createdWallet);
@@ -138,9 +140,9 @@ export class AuthService {
     });
 
     return buildResponse(APP_RESPONSE.OK, {
-      id: String(user.id),
+      id: user.id,
       username: user.username,
-      wallet_id: String(wallet.id),
+      wallet_id: wallet.id,
       avatar: user.avatar,
       active: this.buildActive(user),
     });
@@ -351,7 +353,7 @@ export class AuthService {
     return this.buildLoginResponse(updatedUser as User, token);
   }
 
-  async changePassword(dto: ChangePasswordDto, userId: number) {
+  async changePassword(dto: ChangePasswordDto, userId: string) {
     try {
       const user = await this.usersService.findByIdWithPassword(userId);
 
@@ -396,7 +398,7 @@ export class AuthService {
     }
   }
 
-  async changeInfoAfterSignup(dto: ChangeInfoAfterSignupDto, userId: number) {
+  async changeInfoAfterSignup(dto: ChangeInfoAfterSignupDto, userId: string) {
     try {
       const user = await this.usersService.findById(userId);
 
@@ -421,7 +423,7 @@ export class AuthService {
       }
 
       return buildResponse(APP_RESPONSE.OK, {
-        id: String(updatedUser.id),
+        id: updatedUser.id,
         username: updatedUser.username,
         phone_number: updatedUser.phone_number,
         password: updatedUser.password,
@@ -436,7 +438,7 @@ export class AuthService {
     }
   }
 
-  async logout(userId: number) {
+  async logout(userId: string) {
     try {
       const user = await this.usersService.findById(userId);
 

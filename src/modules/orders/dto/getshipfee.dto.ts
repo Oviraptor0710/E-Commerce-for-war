@@ -1,18 +1,16 @@
-import { IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class GetShipFeeDto {
   @ApiProperty({
     description: 'mã sản phẩm',
   })
-  @IsNumber({}, { message: '1003' })
-  @IsNotEmpty({ message: '1002' })
-  product_id: number;
+  @IsPositiveBigIntId()
+  product_id: string;
 
   @ApiProperty({
     description: 'Mã địa chỉ người dùng',
   })
-  @IsNumber({}, { message: '1003' })
-  @IsOptional()
-  address_id: number;
+  @IsPositiveBigIntId({ required: false })
+  address_id: string;
 }

@@ -1,0 +1,1149 @@
+
+// SÀN THƯƠNG MẠI ĐIỆN TỬ THỜI CHIẾN (WAR-TIME E-COMMERCE WITH COMBAT PROOF AI)
+// Database Schema Definition (DBML)
+// Quy ước điểm: mọi giá trị điểm dùng decimal(20,3), đơn vị nhỏ nhất là 0.001 điểm.
+
+
+// Buyer là khả năng mặc định của mọi tài khoản user đang hoạt động.
+// Quyền seller được biểu diễn riêng bằng seller_profiles sau khi admin duyệt,
+// không phải là một role loại trừ quyền mua hàng.
+Enum account_role {
+  user [note: 'Tài khoản thông thường; mặc định có quyền mua hàng']
+  admin [note: 'Quản trị viên hệ thống']
+}
+
+// Bảng lưu trữ thông tin cốt lõi của người dùng
+Table users {
+  id bigint [pk, increment, note: 'BIGINT ID; API/TypeScript truyền dạng chuỗi để không mất độ chính xác']
+  username varchar [not null, unique]
+  email varchar [unique, note: 'Có thể null; nếu có thì backend phải chuẩn hóa email, ví dụ chuyển về chữ thường, trước khi lưu']
+  phonenumber varchar [not null, unique, note: 'Bắt buộc; backend phải chuẩn hóa về cùng định dạng trước khi lưu']
+  password varchar [not null, note: 'Chỉ lưu password hash, không lưu mật khẩu gốc']
+  uuid varchar [not null, unique]
+  role account_role [not null, default: 'user']
+  fullName varchar
+  address varchar
+  city varchar
+  status varchar [not null]
+  cover_image varchar
+  avatar varchar
+  bio text
+  created_at datetime(6) [not null]
+}
+
+// Bảng lưu mã xác thực (OTP)
+Table user_codes {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint
+  code varchar
+  expired_at timestamp
+}
+
+// Bảng quản lý tính năng Theo dõi (Follow)
+Table user_follows {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  follower_id bigint [not null]
+  followee_id bigint [not null]
+  created_at datetime
+
+  indexes {
+    (follower_id, followee_id) [unique, name: 'uq_user_follows_pair']
+  }
+
+  checks {
+    `follower_id <> followee_id` [name: 'chk_user_follows_not_self']
+  }
+}
+
+// Bảng quản lý tính năng Chặn (Block)
+Table user_blocks {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  blocker_id bigint [not null]
+  blocked_id bigint [not null]
+  created_at datetime
+
+  indexes {
+    (blocker_id, blocked_id) [unique, name: 'uq_user_blocks_pair']
+  }
+
+  checks {
+    `blocker_id <> blocked_id` [name: 'chk_user_blocks_not_self']
+  }
+}
+
+// Bảng lưu cấu hình nhận thông báo của User
+Table push_settings {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [unique]
+  like tinyint
+  comment tinyint
+  transaction tinyint
+  announcement tinyint
+  sound_on tinyint
+  sound_default varchar
+  created_at datetime
+  updated_at datetime
+
+  checks {
+    `like IS NULL OR like IN (0, 1)` [name: 'chk_push_settings_like_boolean']
+    `comment IS NULL OR comment IN (0, 1)` [name: 'chk_push_settings_comment_boolean']
+    `transaction IS NULL OR transaction IN (0, 1)` [name: 'chk_push_settings_transaction_boolean']
+    `announcement IS NULL OR announcement IN (0, 1)` [name: 'chk_push_settings_announcement_boolean']
+    `sound_on IS NULL OR sound_on IN (0, 1)` [name: 'chk_push_settings_sound_boolean']
+  }
+}
+
+// Các loại thông báo 
+Enum notification_type {
+  // Tương tác sản phẩm và xã hội
+  product_liked [note: 'Có người thích sản phẩm của người nhận']
+  product_commented [note: 'Có người bình luận sản phẩm của người nhận']
+  review_received [note: 'Seller nhận được đánh giá mới từ buyer']
+  new_follower [note: 'Người nhận có người theo dõi mới']
+
+  // Đơn hàng
+  order_created [note: 'Buyer đã tạo đơn hàng mới cho seller']
+  order_confirmed [note: 'Seller đã xác nhận đơn hàng']
+  order_shipped [note: 'Đơn hàng đã bắt đầu được vận chuyển']
+  order_delivered [note: 'Đơn hàng đã được giao tới buyer']
+  order_completed [note: 'Đơn hàng đã hoàn tất']
+  order_cancelled [note: 'Đơn hàng đã bị hủy']
+  refund_completed [note: 'Yêu cầu hoàn điểm của đơn hàng đã hoàn tất']
+
+  // Video chiến tích và AI
+  reward_credited [note: 'AI phát hiện chiến tích hợp lệ và hệ thống đã cộng điểm']
+  reward_not_detected [note: 'AI không phát hiện chiến tích hợp lệ trong video']
+  reward_processing_failed [note: 'AI không thể xử lý video chiến tích']
+
+  // Ví điểm
+  points_refunded [note: 'Điểm đã được hoàn lại vào ví của buyer']
+  sale_points_released [note: 'Điểm bán hàng đã được giải phóng cho seller']
+
+  // Chat
+  new_message [note: 'Người nhận có tin nhắn mới']
+
+  // Hệ thống và bảo mật
+  system_announcement [note: 'Admin gửi thông báo chung của hệ thống']
+  account_status_changed [note: 'Trạng thái tài khoản đã thay đổi']
+  security_alert [note: 'Cảnh báo liên quan tới bảo mật tài khoản']
+
+  // Đăng ký seller
+  seller_application_approved [note: 'Đơn đăng ký seller đã được admin chấp nhận']
+  seller_application_rejected [note: 'Đơn đăng ký seller đã bị admin từ chối']
+}
+
+// Loại đối tượng mà ứng dụng sẽ mở khi người dùng nhấn vào thông báo
+Enum notification_target_type {
+  product [note: 'Trang chi tiết sản phẩm']
+  user_profile [note: 'Trang hồ sơ người dùng']
+  order [note: 'Trang chi tiết đơn hàng hoặc vận chuyển']
+  reward_result [note: 'Trang kết quả AI; không hiển thị video chiến tích cho user thường']
+  wallet_transaction [note: 'Trang chi tiết giao dịch điểm']
+  conversation [note: 'Phòng chat']
+  news [note: 'Bản tin hoặc thông báo hệ thống']
+  account_status [note: 'Trang trạng thái tài khoản']
+  account_security [note: 'Trang bảo mật tài khoản']
+  seller_application [note: 'Trang chi tiết và kết quả đơn đăng ký seller']
+}
+
+// Bảng lưu thông báo trong ứng dụng; push notification là một kênh phân phối của bản ghi này
+Table notifications {
+  id bigint [pk, increment]
+  user_id bigint [not null, note: 'Người nhận thông báo; API/TypeScript dạng chuỗi']
+  actor_id bigint [note: 'Người tạo ra hành động, ví dụ người đã like hoặc comment; API/TypeScript dạng chuỗi']
+  deduplication_key varchar(150) [note: 'Khóa chống tạo trùng cùng một sự kiện cho cùng người nhận; unique theo user_id']
+  type notification_type [not null]
+  title varchar [not null]
+  content text
+  image_url varchar [note: 'Ảnh đại diện cho thông báo: ảnh sản phẩm, avatar hoặc thumbnail phù hợp']
+  is_navigable tinyint [not null, default: 0, note: '1 nếu có thể nhấn để chuyển trang']
+  target_type notification_target_type [note: 'Loại trang hoặc đối tượng cần mở']
+  target_id bigint [note: 'ID của đối tượng cần mở; là tham chiếu đa hình nên không khai báo foreign key trực tiếp']
+  data json [note: 'Dữ liệu riêng theo type, ví dụ số điểm, trạng thái đơn hàng hoặc mã vận đơn']
+  is_read tinyint [not null, default: 0]
+  read_at datetime [note: 'Thời điểm người dùng đọc thông báo; null nếu chưa đọc']
+  created_at datetime [not null]
+
+  indexes {
+    (user_id, deduplication_key) [unique, name: 'uq_notifications_user_deduplication']
+    (user_id, is_read, created_at) [name: 'idx_notifications_user_inbox']
+    (target_type, target_id) [name: 'idx_notifications_target']
+  }
+
+  checks {
+    `is_navigable IN (0, 1)` [name: 'chk_notifications_navigable_boolean']
+    `is_read IN (0, 1)` [name: 'chk_notifications_read_boolean']
+    `is_navigable = 0 OR (target_type IS NOT NULL AND target_id IS NOT NULL)` [name: 'chk_notifications_navigation_target']
+    `(is_read = 0 AND read_at IS NULL) OR (is_read = 1 AND read_at IS NOT NULL)` [name: 'chk_notifications_read_state']
+  }
+}
+
+// Bảng lưu trữ bản tin hệ thống
+Table news {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  title text
+  created_at int
+  content varchar
+}
+
+// Bảng lưu Token thiết bị để đẩy Push Notifications
+Table dev_tokens {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint
+  devtype varchar
+  devtoken varchar
+  is_active tinyint
+  created_at datetime
+  updated_at datetime
+}
+
+// Trạng thái của một nghiệp vụ thay đổi điểm
+Enum wallet_operation_status {
+  pending [note: 'Nghiệp vụ đã được tiếp nhận nhưng chưa hoàn tất']
+  completed [note: 'Toàn bộ ledger entry và số dư đã được cập nhật thành công']
+  failed [note: 'Nghiệp vụ thất bại và không được làm thay đổi số dư']
+  reversed [note: 'Nghiệp vụ đã được đảo ngược bằng một operation khác']
+}
+
+// Loại nghiệp vụ thay đổi điểm; module Ví độc lập với Order và AI
+Enum wallet_operation_type {
+  development_credit [note: 'Cấp điểm thử nghiệm; chỉ dùng trong môi trường development/test']
+  reward_credit [note: 'Cộng điểm chiến tích; dành cho giai đoạn AI sau này']
+  order_payment [note: 'Buyer thanh toán đơn hàng: trừ available của buyer và cộng pending cho seller']
+  seller_points_release [note: 'Chuyển điểm từ pending sang available của seller sau thời hạn hoàn hàng']
+  order_refund [note: 'Thu hồi pending của seller và hoàn điểm cho buyer']
+  adjustment [note: 'Điều chỉnh điểm có kiểm soát']
+  reversal [note: 'Đảo ngược một operation trước đó mà không sửa hoặc xóa ledger cũ']
+}
+
+// Loại đối tượng nghiệp vụ tạo ra wallet operation
+Enum wallet_reference_type {
+  development
+  reward_proof
+  order
+  refund
+  admin_action
+}
+
+// Vùng số dư bị tác động trong một wallet
+Enum wallet_balance_bucket {
+  available [note: 'Điểm user có thể sử dụng']
+  pending [note: 'Điểm đang bị tạm giữ và chưa thể sử dụng']
+}
+
+Enum wallet_entry_direction {
+  credit [note: 'Cộng điểm vào bucket']
+  debit [note: 'Trừ điểm khỏi bucket']
+}
+
+Enum reward_proof_status {
+  uploaded
+  processing
+  rewarded
+  rejected
+  failed
+  media_deleted
+}
+
+Enum ai_evaluation_status {
+  processing
+  succeeded
+  failed
+}
+
+Enum reward_appeal_status {
+  pending
+  accepted
+  rejected
+}
+
+// Bảng Ví điểm; số dư tại đây là giá trị đọc nhanh, ledger là lịch sử chính thức
+Table wallets {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [not null, unique, note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
+  available_balance decimal(20,3) [not null, default: 0]
+  pending_balance decimal(20,3) [not null, default: 0]
+  status varchar [not null, default: 'active', note: 'VD: active, frozen']
+  version int [not null, default: 0, note: 'Hỗ trợ kiểm soát cập nhật đồng thời']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  checks {
+    `available_balance >= 0` [name: 'chk_wallets_available_non_negative']
+    `pending_balance >= 0` [name: 'chk_wallets_pending_non_negative']
+    `version >= 0` [name: 'chk_wallets_version_non_negative']
+  }
+}
+
+// Bảng lịch sử giao dịch cũ; chỉ dùng để đọc tương thích trong giai đoạn chuyển sang wallet_operations/wallet_entries.
+// Không dùng bảng này để ghi thêm giao dịch mới sau khi ledger đã hoạt động.
+Table transactions {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  wallet_id bigint [not null, note: 'Tham chiếu wallets.id; API/TypeScript dạng chuỗi']
+  type varchar
+  amount decimal(20,3) [note: 'Giá trị điểm; giữ 3 chữ số sau dấu phẩy']
+  status varchar
+  description text
+  created_at datetime
+}
+
+// Bảng đầu mục nghiệp vụ tài chính; một operation có thể tác động tới nhiều wallet
+Table wallet_operations {
+  id bigint [pk, increment]
+  type wallet_operation_type [not null]
+  reference_type wallet_reference_type [not null]
+  reference_id bigint [note: 'Tham chiếu đa hình tới order, refund, reward_proof...']
+  idempotency_key varchar(150) [not null, unique, note: 'Mã ổn định theo nghiệp vụ, dùng để chống xử lý trùng khi retry']
+  status wallet_operation_status [not null, default: 'pending']
+  reverses_operation_id bigint [note: 'Operation bị đảo ngược nếu type = reversal']
+  request_hash varchar [not null, note: 'Dùng đối chiếu payload khi một idempotency_key được gửi lại']
+  description text
+  metadata json
+  created_at datetime [not null]
+  completed_at datetime
+
+  indexes {
+    (reference_type, reference_id) [name: 'idx_wallet_operations_reference']
+  }
+
+  checks {
+    `type <> 'reversal' OR reverses_operation_id IS NOT NULL` [name: 'chk_wallet_operations_reversal_reference']
+  }
+}
+
+// MySQL không cho CHECK tham chiếu cột AUTO_INCREMENT để kiểm tra
+// reverses_operation_id <> id; backend phải chặn reversal tự tham chiếu.
+
+// Sổ cái bất biến lưu từng thay đổi cụ thể trên từng bucket của wallet
+Table wallet_entries {
+  id bigint [pk, increment]
+  operation_id bigint [not null]
+  wallet_id bigint [not null, note: 'Tham chiếu wallets.id; API/TypeScript dạng chuỗi']
+  bucket wallet_balance_bucket [not null]
+  direction wallet_entry_direction [not null]
+  amount decimal(20,3) [not null, note: 'Luôn lớn hơn 0; chiều cộng/trừ được xác định bởi direction']
+  balance_before decimal(20,3) [not null]
+  balance_after decimal(20,3) [not null]
+  created_at datetime [not null]
+
+  indexes {
+    (operation_id, wallet_id, bucket) [unique]
+    (wallet_id, created_at) [name: 'idx_wallet_entries_history']
+  }
+
+  checks {
+    `amount > 0` [name: 'chk_wallet_entries_amount_positive']
+    `balance_before >= 0` [name: 'chk_wallet_entries_before_non_negative']
+    `balance_after >= 0` [name: 'chk_wallet_entries_after_non_negative']
+    `(direction = 'credit' AND balance_after = balance_before + amount) OR (direction = 'debit' AND balance_after = balance_before - amount)` [name: 'chk_wallet_entries_balance_equation']
+  }
+}
+
+// Bảng Danh mục các loại chiến tích (Mục tiêu)
+Table reward_rules {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  achievement_type varchar(100) [not null, unique, note: 'VD: enemy_kill, tank_destroy']
+  achievement_name varchar(255) [not null, note: 'VD: Tiêu diệt kẻ địch, Phá hủy xe tăng']
+  reward_coin decimal(20,3) [not null, note: 'Điểm cộng trên 1 đơn vị']
+  min_ai_score decimal(5,4) [note: 'Ngưỡng điểm AI tối thiểu, trong khoảng 0..1']
+  max_reward_per_day decimal(20,3) [note: 'Giới hạn điểm thưởng/ngày']
+  is_active boolean [not null, default: true]
+  icon_url varchar
+  description text
+
+  checks {
+    `reward_coin >= 0` [name: 'chk_reward_rules_reward_coin_non_negative']
+    `min_ai_score IS NULL OR (min_ai_score >= 0 AND min_ai_score <= 1)` [name: 'chk_reward_rules_min_ai_score_range']
+  }
+}
+
+// Bảng lưu trữ video chiến tích; media là private, admin chỉ xem qua signed URL.
+Table reward_proofs {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  video_storage_key varchar(1024) [not null, note: 'Object key private, không lưu URL công khai']
+  description text
+  ai_score decimal(5,4) [note: 'Độ tin cậy tổng hợp, trong khoảng 0..1']
+  reward_coin decimal(20,3) [note: 'Tổng điểm nhận được từ video này']
+  status reward_proof_status [not null, default: 'uploaded']
+  created_at datetime
+  user_id bigint [note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
+  ai_model_version varchar
+  ai_evaluated_at datetime
+  rejection_reason text
+  media_retention_until datetime [not null, note: 'Mặc định created_at + 1 năm']
+  media_deleted_at datetime
+
+  indexes {
+    (user_id, created_at) [name: 'idx_reward_proofs_user_created']
+    (status, media_retention_until) [name: 'idx_reward_proofs_retention']
+  }
+
+  checks {
+    `CHAR_LENGTH(video_storage_key) > 0` [name: 'chk_reward_proofs_video_storage_key_required']
+    `ai_score IS NULL OR (ai_score >= 0 AND ai_score <= 1)` [name: 'chk_reward_proofs_ai_score_range']
+    `reward_coin IS NULL OR reward_coin >= 0` [name: 'chk_reward_proofs_reward_coin_non_negative']
+  }
+}
+
+// Bảng lưu chi tiết các mục tiêu phát hiện được trong 1 video
+Table proof_achievements {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  proof_id bigint [not null]
+  rule_id bigint [not null]
+  quantity int [not null, note: 'Số lượng phát hiện']
+  ai_confidence decimal(5,4) [not null, note: 'Độ tin cậy của AI, trong khoảng 0..1']
+  reward_earned decimal(20,3) [not null, note: 'Điểm nhận được = quantity * reward_coin']
+  created_at datetime [not null]
+
+  indexes {
+    (proof_id, rule_id) [unique, name: 'uq_proof_achievements_proof_rule']
+  }
+
+  checks {
+    `quantity > 0` [name: 'chk_proof_achievements_quantity_positive']
+    `ai_confidence >= 0 AND ai_confidence <= 1` [name: 'chk_proof_achievements_confidence_range']
+    `reward_earned >= 0` [name: 'chk_proof_achievements_reward_non_negative']
+  }
+}
+
+// Bảng Hộp đen lưu vết quá trình AI chấm điểm
+Table ai_evaluation_logs {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  proof_id bigint [not null]
+  attempt_no int [not null]
+  model_name varchar(150) [not null]
+  model_version varchar(100) [not null]
+  input_data json
+  output_data json
+  score decimal(5,4)
+  processing_time_ms int
+  status ai_evaluation_status [not null]
+  error_message text
+  created_at datetime [not null]
+
+  indexes {
+    (proof_id, attempt_no) [unique, name: 'uq_ai_evaluation_logs_proof_attempt']
+    (proof_id, created_at) [name: 'idx_ai_evaluation_logs_proof_created']
+  }
+}
+
+// Bảng cho phép người dùng Khiếu nại kết quả AI
+Table reward_appeals {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  reason text
+  status reward_appeal_status [not null, default: 'pending']
+  proof_id bigint [not null]
+  user_id bigint
+}
+
+// Bảng Thông tin Sản phẩm.
+// min_price và max_price là dữ liệu tổng hợp để đọc nhanh trên danh sách sản phẩm,
+// được tính từ effective_price = COALESCE(product_variants.discount_price, product_variants.price)
+// của các variant chưa bị soft-delete, không phụ thuộc vào stock.
+// Giá chính thức của giao dịch luôn nằm tại product_variants.
+Table products {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  seller_id bigint [not null, note: 'Tham chiếu seller_profiles.user_id; API/TypeScript dạng chuỗi; backend chỉ cho phép seller profile active tạo hoặc sửa sản phẩm']
+  ship_from_id bigint [not null, note: 'Địa chỉ của seller đồng thời là địa chỉ kho/xuất hàng; phải thuộc seller và chưa bị soft-delete']
+  category_id bigint [not null]
+  brand_id bigint
+  title varchar [not null]
+  description text
+  min_price decimal(20,3) [not null, note: 'Giá hiệu lực thấp nhất trong các variant chưa bị xóa; dữ liệu cache cho truy vấn danh sách']
+  max_price decimal(20,3) [not null, note: 'Giá hiệu lực cao nhất trong các variant chưa bị xóa; dữ liệu cache cho truy vấn danh sách']
+  videos json
+  created_at datetime(6) [not null]
+  deleted_at datetime
+  image_urls text
+
+  indexes {
+    (category_id, deleted_at) [name: 'idx_products_category_active']
+    (brand_id, deleted_at) [name: 'idx_products_brand_active']
+    (min_price) [name: 'idx_products_min_price']
+    (max_price) [name: 'idx_products_max_price']
+  }
+
+  checks {
+    `min_price >= 0` [name: 'chk_products_min_price_non_negative']
+    `max_price >= min_price` [name: 'chk_products_price_range']
+  }
+}
+
+// Bảng Biến thể sản phẩm (Size, Màu sắc...).
+// Mọi sản phẩm có thể bán phải có ít nhất một variant; sản phẩm không có lựa chọn
+// sử dụng một default variant với size/color để null.
+// Khi thêm, sửa giá, giảm giá hoặc soft-delete variant, min_price/max_price của
+// product cha phải được tính lại trong cùng một database transaction.
+// Cart không giữ hàng. Khi checkout, backend phải khóa các variant theo id tăng dần,
+// kiểm tra stock và trừ kho trong cùng transaction tạo order, order_items và thanh toán.
+Table product_variants {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  product_id bigint [not null]
+  deleted_at datetime
+  size varchar
+  color varchar
+  price decimal(20,3) [not null, note: 'Giá niêm yết chính thức của variant']
+  discount_price decimal(20,3) [note: 'Giá bán sau giảm; null nếu variant không được giảm giá']
+  stock int [not null, default: 0, note: 'Số lượng hiện còn có thể bán; bị trừ nguyên tử khi checkout thành công']
+  weight float
+
+  indexes {
+    (product_id, deleted_at) [name: 'idx_product_variants_product_active']
+  }
+
+  checks {
+    `price >= 0` [name: 'chk_product_variants_price_non_negative']
+    `discount_price IS NULL OR discount_price >= 0` [name: 'chk_product_variants_discount_non_negative']
+    `discount_price IS NULL OR discount_price <= price` [name: 'chk_product_variants_discount_not_above_price']
+    `stock >= 0` [name: 'chk_product_variants_stock_non_negative']
+    `weight IS NULL OR weight >= 0` [name: 'chk_product_variants_weight_non_negative']
+  }
+}
+
+// Loại biến động làm thay đổi product_variants.stock.
+// return_restock được dành sẵn cho giai đoạn xử lý trả hàng vật lý sau này;
+// hoàn điểm không tự động cộng lại stock.
+Enum inventory_movement_type {
+  initial_stock [note: 'Tồn kho ban đầu khi seller tạo variant']
+  seller_adjustment [note: 'Seller hoặc admin điều chỉnh tồn kho có ghi lý do']
+  order_deducted [note: 'Trừ kho khi checkout và thanh toán đơn hàng thành công']
+  order_cancelled_restore [note: 'Cộng trả kho khi đơn bị hủy trước khi giao hoàn tất']
+  return_restock [note: 'Cộng lại kho sau khi hàng trả về đã được xác nhận có thể bán tiếp']
+}
+
+// Bảng Danh mục ngành hàng
+Table categories {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  name varchar
+  parent_id bigint [note: 'Null đối với danh mục gốc; API/TypeScript dạng chuỗi']
+  sort int
+  has_child tinyint
+  has_brand tinyint
+  has_size tinyint
+  require_weight tinyint
+  description varchar
+  image_url varchar
+
+  checks {
+    `has_child IS NULL OR has_child IN (0, 1)` [name: 'chk_categories_has_child_boolean']
+    `has_brand IS NULL OR has_brand IN (0, 1)` [name: 'chk_categories_has_brand_boolean']
+    `has_size IS NULL OR has_size IN (0, 1)` [name: 'chk_categories_has_size_boolean']
+    `require_weight IS NULL OR require_weight IN (0, 1)` [name: 'chk_categories_require_weight_boolean']
+    `parent_id IS NULL OR parent_id <> id` [name: 'chk_categories_not_self_parent']
+  }
+}
+
+// Bảng Thương hiệu / Nhà cung cấp
+Table brands {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  name varchar
+  logo_url varchar
+  category_id bigint
+}
+
+// Loại media đã được upload lên object storage.
+Enum media_type {
+  image
+  video
+}
+
+// temporary: file đã upload nhưng chưa gắn vào bình luận.
+// attached: file đã được gắn thành công.
+// deleting: worker đã claim file hết hạn và đang xóa khỏi object storage.
+Enum media_status {
+  temporary
+  attached
+  deleting
+}
+
+// File thật nằm trên Cloudflare R2; bảng này chỉ lưu object key và metadata.
+// Upload tạm hết hạn sau 24 giờ. Backend phải kiểm tra magic bytes; ảnh chỉ nhận
+// JPEG/PNG/WebP <= 3 MiB, video chỉ nhận MP4/WebM/MOV <= 100 MiB và <= 60 giây.
+Table media_assets {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  uploader_id bigint [not null, note: 'User sở hữu upload; chỉ chính user này được attach media']
+  media_type media_type [not null]
+  storage_key varchar(512) [not null, note: 'Object key ổn định trên R2; URL hiển thị được tạo từ key này']
+  mime_type varchar(100) [not null, note: 'MIME được backend phát hiện từ nội dung thật của file']
+  size_bytes bigint [not null, note: 'API/TypeScript dạng chuỗi']
+  duration_ms int [note: 'Null với ảnh; video phải từ 1 đến 60000 ms']
+  status media_status [not null, default: 'temporary']
+  expires_at datetime(6) [note: 'Bắt buộc với temporary/deleting; null sau khi attached']
+  attached_at datetime(6) [note: 'Bắt buộc với attached; null khi file còn tạm']
+  created_at datetime(6) [not null]
+
+  indexes {
+    (storage_key) [unique, name: 'uq_media_assets_storage_key']
+    (status, expires_at) [name: 'idx_media_assets_cleanup']
+    (uploader_id, status, id) [name: 'idx_media_assets_owner_status']
+  }
+
+  checks {
+    `size_bytes > 0` [name: 'chk_media_assets_size_positive']
+    `(media_type = 'image' AND size_bytes <= 3145728 AND duration_ms IS NULL) OR (media_type = 'video' AND size_bytes <= 104857600 AND duration_ms BETWEEN 1 AND 60000)` [name: 'chk_media_assets_type_limits']
+    `(status = 'temporary' AND expires_at IS NOT NULL AND attached_at IS NULL) OR (status = 'attached' AND expires_at IS NULL AND attached_at IS NOT NULL) OR (status = 'deleting' AND expires_at IS NOT NULL AND attached_at IS NULL)` [name: 'chk_media_assets_lifecycle']
+  }
+}
+
+// Bảng Bình luận trên trang sản phẩm.
+// Chỉ user từng nhận thành công đúng sản phẩm từ đúng seller mới được bình luận;
+// đơn đã hoàn tiền vẫn giữ quyền bình luận. Một user có thể bình luận nhiều lần.
+Table comments {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  product_id bigint [not null]
+  user_id bigint [not null]
+  content text [note: 'Có thể null khi có media; nếu có thì tối đa 2000 ký tự sau khi trim']
+  idempotency_key varchar(150) [not null, note: 'Retry cùng key và payload phải trả lại bình luận cũ']
+  request_hash varchar(64) [not null, note: 'SHA-256 của product_id, content đã chuẩn hóa và media_ids theo đúng thứ tự']
+  created_at datetime(6) [not null]
+
+  indexes {
+    (user_id, idempotency_key) [unique, name: 'uq_comments_user_idempotency']
+    (product_id, created_at, id) [name: 'idx_comments_product_created']
+  }
+
+  checks {
+    `content IS NULL OR CHAR_LENGTH(content) <= 2000` [name: 'chk_comments_content_length']
+  }
+}
+
+// Liên kết media đã upload với bình luận và bảo toàn thứ tự hiển thị.
+// Quy tắc tối đa 4 ảnh hoặc 1 video, không trộn hai loại, được kiểm tra trong
+// cùng transaction attach media vì CHECK của một hàng không thể kiểm tra nhiều hàng.
+Table comment_media {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  comment_id bigint [not null]
+  media_asset_id bigint [not null, note: 'Một upload chỉ được attach vào một bình luận']
+  position tinyint [not null, note: 'Thứ tự 1..4; video luôn ở vị trí 1']
+  created_at datetime(6) [not null]
+
+  indexes {
+    (media_asset_id) [unique, name: 'uq_comment_media_asset']
+    (comment_id, position) [unique, name: 'uq_comment_media_position']
+  }
+
+  checks {
+    `position BETWEEN 1 AND 4` [name: 'chk_comment_media_position']
+  }
+}
+
+// Bảng Lượt Thích sản phẩm
+Table likes {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  product_id bigint [not null]
+  user_id bigint [not null]
+
+  indexes {
+    (product_id, user_id) [unique, name: 'uq_likes_product_user']
+  }
+}
+
+// Bảng Đánh giá 1-5 sao sau khi mua hàng
+Table rates {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [not null]
+  reviewer_id bigint [not null]
+  product_id bigint [not null]
+  purchase_id bigint [note: 'Mã đơn hàng đã mua; API/TypeScript dạng chuỗi; null nếu đánh giá không gắn với một đơn cụ thể']
+  level int [not null]
+  content text
+  created_at datetime
+
+  indexes {
+    (purchase_id, product_id, reviewer_id) [unique, name: 'uq_rates_purchase_product_reviewer']
+  }
+
+  checks {
+    `level >= 1 AND level <= 5` [name: 'chk_rates_level_range']
+    `user_id <> reviewer_id` [name: 'chk_rates_not_self_review']
+  }
+}
+
+// Bảng Báo cáo/Tố cáo sản phẩm vi phạm
+Table reports {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  product_id bigint [not null]
+  user_id bigint [not null]
+  reason text
+}
+
+// Bảng Lịch sử tìm kiếm
+Table saved_searches {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [not null]
+  keyword varchar
+  created_at datetime
+}
+
+// Bảng Giỏ hàng; mỗi dòng đại diện cho đúng một variant được user chọn.
+// Cart không snapshot giá và không giữ tồn kho. Giá/stock phải được kiểm tra lại khi checkout.
+Table cart_items {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [not null, note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
+  variant_id bigint [not null]
+  quantity int [not null]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+
+  indexes {
+    (user_id, variant_id) [unique, name: 'UQ_cart_items_user_variant']
+  }
+
+  checks {
+    `quantity > 0` [name: 'chk_cart_items_quantity_positive']
+  }
+}
+
+// Trạng thái thực hiện đơn hàng hiện tại; orders.status là nguồn sự thật duy nhất.
+// Luồng hợp lệ phiên bản đầu:
+// pending_confirmation -> confirmed | cancelled
+// confirmed -> shipping | cancelled
+// shipping -> delivered
+// delivered và cancelled là trạng thái kết thúc của luồng thực hiện đơn.
+// Hoàn tiền và giải phóng điểm được theo dõi riêng bằng refund_status và settlement_status.
+Enum order_status {
+  pending_confirmation [note: 'Đơn đã được tạo, đang chờ seller xác nhận']
+  confirmed [note: 'Seller đã xác nhận và đang chuẩn bị hàng']
+  shipping [note: 'Đơn đã được bàn giao để vận chuyển']
+  delivered [note: 'Buyer hoặc hệ thống vận chuyển đã xác nhận giao hàng thành công']
+  cancelled [note: 'Đơn bị hủy trước khi hoàn tất giao hàng']
+}
+
+Enum order_status_change_source {
+  buyer [note: 'Thay đổi do buyer thực hiện']
+  seller [note: 'Thay đổi do seller thực hiện']
+  system [note: 'Thay đổi tự động bởi hệ thống hoặc đơn vị vận chuyển']
+  admin [note: 'Thay đổi bởi admin trong trường hợp cần can thiệp']
+}
+
+// Trạng thái quyết toán điểm của đơn hàng, tách biệt với trạng thái thực hiện/giao hàng
+Enum settlement_status {
+  holding [note: 'Điểm đang nằm trong pending_balance của seller']
+  refund_requested [note: 'Buyer đã yêu cầu hoàn hàng; tạm dừng giải phóng điểm']
+  released [note: 'Điểm đã được chuyển sang available_balance của seller']
+  refunded [note: 'Điểm đã được hoàn lại cho buyer']
+}
+
+Enum refund_status {
+  requested [note: 'Đang chờ seller phản hồi']
+  accepted [note: 'Seller hoặc hệ thống timeout đã chấp nhận']
+  rejected [note: 'Seller đã từ chối yêu cầu']
+  completed [note: 'Wallet operation hoàn điểm đã hoàn tất']
+}
+
+Enum refund_decision_source {
+  seller [note: 'Quyết định do seller thực hiện']
+  system_timeout [note: 'Tự động chấp nhận vì seller không phản hồi trong 3 ngày']
+}
+
+// Bảng Đơn đặt hàng tổng quan
+Table orders {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  checkout_idempotency_key varchar(150) [not null, note: 'Khóa ổn định do client tạo cho một lần checkout; retry cùng khóa phải trả lại đúng đơn cũ']
+  checkout_request_hash varchar(64) [not null, note: 'SHA-256 payload checkout chuẩn hóa; cùng idempotency key nhưng khác payload phải bị từ chối']
+  buyer_id bigint [not null]
+  buyer_address_id bigint [not null, note: 'Địa chỉ đã lưu được buyer chọn khi checkout; phải thuộc buyer và chưa bị soft-delete; API/TypeScript dạng chuỗi']
+  buyer_receiver_name varchar(255) [not null, note: 'Snapshot tên người nhận tại thời điểm tạo đơn']
+  buyer_phone varchar(30) [not null, note: 'Snapshot số điện thoại tại thời điểm tạo đơn']
+  buyer_full_address text [not null, note: 'Snapshot địa chỉ nhận hàng tại thời điểm tạo đơn; là nguồn địa chỉ cho shipping và lịch sử đơn']
+  seller_id bigint [not null, note: 'Tham chiếu seller_profiles.user_id; API/TypeScript dạng chuỗi; giữ nguyên để bảo toàn lịch sử ngay cả khi seller bị suspended']
+  seller_address_id bigint [not null, note: 'Địa chỉ seller được dùng làm kho/xuất hàng khi tạo đơn; API/TypeScript dạng chuỗi']
+  seller_full_address text [not null, note: 'Snapshot địa chỉ xuất hàng tại thời điểm tạo đơn']
+  status order_status [not null, default: 'pending_confirmation', note: 'Nguồn sự thật duy nhất cho trạng thái thực hiện/giao hàng hiện tại của đơn']
+  status_changed_at datetime(6) [not null, note: 'Thời điểm orders.status được thay đổi gần nhất; bằng created_at khi tạo đơn']
+  settlement_status settlement_status [not null, default: 'holding']
+  total_price decimal(20,3) [not null, default: 0]
+  shipping_fee decimal(20,3) [not null, default: 0, note: 'Phiên bản hiện tại chưa tính phí vận chuyển']
+  leatime int [default: 0]
+  note text
+  cancel_reason varchar
+  refund_reason varchar
+  delivered_at datetime(6) [note: 'Mốc bắt đầu thời hạn hoàn hàng 7 ngày']
+  return_deadline datetime(6) [note: 'Snapshot bằng delivered_at + 7 ngày; buyer được yêu cầu hoàn tại đúng deadline']
+  settled_at datetime(6) [note: 'Thời điểm hoàn điểm hoặc giải phóng điểm cho seller hoàn tất']
+  media_retention_until datetime(6) [note: 'Bằng settled_at + 30 ngày; ảnh snapshot của đơn được xóa sau mốc này thêm 1 ngày']
+  media_purged_at datetime(6) [note: 'Thời điểm thực tế hệ thống đã xóa toàn bộ file ảnh snapshot của đơn; null nếu ảnh vẫn còn được lưu']
+  created_at datetime(6) [not null]
+
+  indexes {
+    (buyer_id, checkout_idempotency_key) [unique, name: 'uq_orders_buyer_checkout_idempotency']
+    (settlement_status, return_deadline) [name: 'idx_orders_settlement_release']
+    (media_purged_at, media_retention_until) [name: 'idx_orders_media_cleanup']
+    (buyer_id, status, created_at, id) [name: 'idx_orders_buyer_status']
+    (seller_id, status, created_at, id) [name: 'idx_orders_seller_status']
+    (buyer_id, seller_id, status, id) [name: 'idx_orders_comment_eligibility', note: 'Covering index cho truy vấn xác minh buyer đã nhận sản phẩm từ đúng seller trước khi bình luận']
+  }
+
+  checks {
+    `buyer_id <> seller_id` [name: 'chk_orders_buyer_not_seller']
+    `total_price >= 0` [name: 'chk_orders_total_price_non_negative']
+    `shipping_fee >= 0` [name: 'chk_orders_shipping_fee_non_negative']
+    `return_deadline IS NULL OR delivered_at IS NOT NULL` [name: 'chk_orders_return_requires_delivery']
+    `media_retention_until IS NULL OR settled_at IS NOT NULL` [name: 'chk_orders_media_retention_requires_settlement']
+    `media_purged_at IS NULL OR media_retention_until IS NOT NULL` [name: 'chk_orders_media_purge_requires_retention']
+  }
+}
+
+// Yêu cầu hoàn toàn bộ đơn; phiên bản đầu chỉ cho phép một refund trên mỗi order
+Table refunds {
+  id bigint [pk, increment]
+  order_id bigint [not null, unique, note: 'API/TypeScript dạng chuỗi']
+  requested_by bigint [not null, note: 'Buyer tạo yêu cầu hoàn hàng; API/TypeScript dạng chuỗi']
+  amount decimal(20,3) [not null, note: 'Bằng toàn bộ orders.total_price trong phiên bản đầu']
+  reason text
+  status refund_status [not null, default: 'requested']
+  decision_source refund_decision_source
+  responded_by bigint [note: 'Seller phản hồi; API/TypeScript dạng chuỗi; null nếu hệ thống tự động chấp nhận do timeout']
+  seller_response text
+  requested_at datetime(6) [not null]
+  seller_response_deadline datetime(6) [not null, note: 'Snapshot bằng requested_at + 3 ngày']
+  responded_at datetime(6)
+  completed_at datetime(6)
+
+  indexes {
+    (status, seller_response_deadline) [name: 'idx_refunds_response_deadline']
+  }
+
+  checks {
+    `amount > 0` [name: 'chk_refunds_amount_positive']
+    `seller_response_deadline > requested_at` [name: 'chk_refunds_response_deadline_after_request']
+    `responded_at IS NULL OR responded_at >= requested_at` [name: 'chk_refunds_responded_after_request']
+    `completed_at IS NULL OR completed_at >= requested_at` [name: 'chk_refunds_completed_after_request']
+    `status <> 'completed' OR completed_at IS NOT NULL` [name: 'chk_refunds_completed_has_timestamp']
+    `decision_source <> 'seller' OR responded_by IS NOT NULL` [name: 'chk_refunds_seller_has_responder']
+    `decision_source <> 'system_timeout' OR responded_by IS NULL` [name: 'chk_refunds_timeout_has_no_responder']
+  }
+}
+
+// Snapshot bất biến của mặt hàng tại thời điểm tạo đơn.
+// product_id và variant_id dùng cho nhận diện/thống kê; màn hình lịch sử phải đọc
+// tên, ảnh, thuộc tính variant và giá từ các trường snapshot bên dưới.
+// Ảnh được sao chép sang object storage riêng; database chỉ lưu object key cố định,
+// không lưu signed URL hoặc dữ liệu nhị phân. Background job xóa ảnh khi thời gian
+// database đã qua media_retention_until thêm 1 ngày, rồi ghi orders.media_purged_at.
+Table order_items {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  order_id bigint [not null, note: 'API/TypeScript dạng chuỗi']
+  product_id bigint [not null]
+  variant_id bigint [not null]
+  product_title_snapshot varchar(255) [not null]
+  product_image_snapshot_key varchar(512) [note: 'Object key bất biến của ảnh đại diện được sao chép khi tạo đơn; null nếu sản phẩm không có ảnh']
+  variant_snapshot json [not null, note: 'Thuộc tính variant tại lúc mua, ví dụ size, color và weight; dùng object rỗng cho default variant']
+  unit_list_price decimal(20,3) [not null, note: 'Giá niêm yết của variant tại thời điểm mua']
+  unit_price decimal(20,3) [not null, note: 'Giá thực trả cho một đơn vị sau giảm giá tại thời điểm mua']
+  quantity int [not null]
+  total_price decimal(20,3) [not null, note: 'Tổng tiền của dòng hàng, bằng unit_price * quantity; không bao gồm shipping_fee']
+  created_at datetime(6) [not null]
+
+  indexes {
+    (order_id, variant_id) [unique, name: 'uq_order_items_order_variant']
+  }
+
+  checks {
+    `unit_list_price >= 0` [name: 'chk_order_items_list_price_non_negative']
+    `unit_price >= 0` [name: 'chk_order_items_unit_price_non_negative']
+    `unit_price <= unit_list_price` [name: 'chk_order_items_unit_price_not_above_list']
+    `quantity > 0` [name: 'chk_order_items_quantity_positive']
+    `total_price = unit_price * quantity` [name: 'chk_order_items_total_price']
+  }
+}
+
+// Sổ biến động tồn kho bất biến. Mọi thay đổi product_variants.stock
+// phải tạo một bản ghi tại đây trong cùng database transaction.
+// idempotency_key phải ổn định theo nghiệp vụ, ví dụ:
+// ORDER_STOCK_DEDUCT:{order_id}:{variant_id} hoặc ORDER_STOCK_RESTORE:{order_id}:{variant_id}.
+Table inventory_movements {
+  id bigint [pk, increment]
+  variant_id bigint [not null]
+  order_item_id bigint [note: 'Order item làm phát sinh biến động; null với tồn ban đầu hoặc điều chỉnh thủ công; API/TypeScript dạng chuỗi']
+  type inventory_movement_type [not null]
+  quantity_delta int [not null, note: 'Số có dấu: âm khi xuất kho, dương khi nhập hoặc cộng trả kho']
+  stock_before int [not null]
+  stock_after int [not null]
+  idempotency_key varchar(150) [not null, unique, name: 'UQ_inventory_movements_idempotency_key', note: 'Ngăn retry làm trừ hoặc cộng kho nhiều lần']
+  created_by bigint [note: 'User thực hiện điều chỉnh; API/TypeScript dạng chuỗi; null với thay đổi tự động của hệ thống']
+  reason text
+  created_at datetime(6) [not null]
+
+  indexes {
+    (variant_id, created_at, id) [name: 'idx_inventory_movements_variant_history']
+    (order_item_id, type) [name: 'idx_inventory_movements_order_item']
+  }
+
+  checks {
+    `quantity_delta <> 0` [name: 'chk_inventory_movements_quantity_non_zero']
+    `stock_before >= 0` [name: 'chk_inventory_movements_stock_before_non_negative']
+    `stock_after >= 0` [name: 'chk_inventory_movements_stock_after_non_negative']
+    `stock_after = stock_before + quantity_delta` [name: 'chk_inventory_movements_stock_equation']
+  }
+}
+
+// Nhật ký bất biến của các lần chuyển trạng thái đơn hàng.
+// Bảng này chỉ dùng cho audit/lịch sử; không dùng bản ghi mới nhất để suy ra trạng thái hiện tại.
+// Mỗi lần chuyển trạng thái phải cập nhật orders.status và thêm timeline trong cùng một transaction.
+Table order_timelines {
+  id bigint [pk, increment]
+  order_id bigint [not null, note: 'API/TypeScript dạng chuỗi']
+  previous_status order_status [note: 'Null đối với timeline đầu tiên khi tạo đơn']
+  new_status order_status [not null, note: 'Trạng thái của đơn sau lần chuyển này']
+  change_source order_status_change_source [not null, default: 'system']
+  changed_by bigint [note: 'User thực hiện thay đổi; API/TypeScript dạng chuỗi; null khi change_source = system']
+  note text
+  created_at datetime(6) [not null]
+
+  indexes {
+    (order_id, created_at, id) [name: 'idx_order_timelines_history']
+  }
+}
+
+// Bảng Tỉnh/Thành phố
+Table Provinces {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  name varchar
+}
+
+// Bảng Phường/Xã
+// Tên cột province_id được thống nhất với nghiệp vụ và toàn bộ schema hiện tại.
+Table Wards {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  name varchar
+  province_id bigint [not null]
+}
+
+// Sổ địa chỉ của user; một user có thể có nhiều địa chỉ.
+// Nội dung giao hàng (user_id, ward_id, address_detail, receiver_name, phone,
+// full_address) là bất biến sau khi tạo. Muốn thay đổi phải tạo địa chỉ mới.
+// address_name và is_default là metadata có thể cập nhật; thao tác xóa chỉ được
+// soft-delete bằng deleted_at để không làm gãy lịch sử order.
+Table addresses {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  user_id bigint [not null]
+  ward_id bigint [not null]
+  address_name varchar(100) [note: 'Nhãn gợi nhớ như Nhà riêng hoặc Cơ quan; có thể thay đổi']
+  address_detail text [not null]
+  is_default tinyint [not null, default: 0, note: 'Chỉ một địa chỉ đang hoạt động của user được đặt làm mặc định; backend cập nhật trong transaction']
+  deleted_at datetime(6) [note: 'Null nếu còn hoạt động; địa chỉ không được hard-delete']
+  receiver_name varchar(255) [not null]
+  phone varchar(30) [not null]
+  full_address text [not null, note: 'Chuỗi hoàn chỉnh dùng để hiển thị và copy sang snapshot của order']
+
+  indexes {
+    (user_id, deleted_at, is_default) [name: 'idx_addresses_user_list']
+  }
+
+  checks {
+    `is_default IN (0, 1)` [name: 'chk_addresses_default_boolean']
+  }
+}
+
+// Trạng thái xét duyệt đơn đăng ký seller.
+// Đơn đã approved/rejected là lịch sử bất biến; user bị từ chối
+// phải tạo đơn mới nếu muốn nộp lại.
+Enum seller_application_status {
+  pending [note: 'Đang chờ admin xét duyệt']
+  approved [note: 'Admin đã chấp nhận và seller profile đã được tạo']
+  rejected [note: 'Admin đã từ chối; user có thể tạo đơn mới']
+}
+
+Enum seller_profile_status {
+  active [note: 'Seller được phép đăng bán và xử lý đơn']
+  suspended [note: 'Seller bị tạm ngừng quyền bán nhưng vẫn giữ quyền mua và lịch sử']
+}
+
+// Lịch sử đơn đăng ký seller. Chỉ cho phép một đơn pending trên một user.
+// MySQL không có partial unique index dễ biểu diễn quy tắc này trong DBML;
+// backend phải khóa users row, kiểm tra đơn pending rồi insert trong cùng transaction.
+Table seller_applications {
+  id bigint [pk, increment]
+  applicant_id bigint [not null]
+  shop_name varchar(255) [not null]
+  description text
+  ship_from_address_id bigint [not null, note: 'Địa chỉ seller chọn làm nơi xuất hàng; phải thuộc applicant và chưa bị soft-delete; API/TypeScript dạng chuỗi']
+  ship_from_full_address_snapshot text [not null, note: 'Snapshot địa chỉ mà admin đã xem khi xét duyệt']
+  status seller_application_status [not null, default: 'pending']
+  reviewed_by bigint [note: 'Admin xử lý đơn; API/TypeScript dạng chuỗi; null khi còn pending']
+  reviewed_at datetime(6)
+  rejection_reason text
+  submitted_at datetime(6) [not null]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+
+  indexes {
+    (status, submitted_at, id) [name: 'idx_seller_applications_admin_queue']
+    (applicant_id, status, created_at, id) [name: 'idx_seller_applications_user_history']
+  }
+
+  checks {
+    `status <> 'pending' OR (reviewed_by IS NULL AND reviewed_at IS NULL AND rejection_reason IS NULL)` [name: 'chk_seller_applications_pending_state']
+    `status <> 'approved' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND rejection_reason IS NULL)` [name: 'chk_seller_applications_approved_state']
+    `status <> 'rejected' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND rejection_reason IS NOT NULL)` [name: 'chk_seller_applications_rejected_state']
+    `reviewed_at IS NULL OR reviewed_at >= submitted_at` [name: 'chk_seller_applications_reviewed_after_submit']
+    `submitted_at >= created_at` [name: 'chk_seller_applications_submitted_after_create']
+    `updated_at >= created_at` [name: 'chk_seller_applications_updated_after_create']
+  }
+}
+
+// Quyền và cấu hình seller sau khi đơn được duyệt.
+// user_id vừa là PK vừa là FK nên một user chỉ có một seller profile.
+// Bản ghi không được hard-delete; khi ngừng quyền bán chỉ chuyển sang suspended.
+Table seller_profiles {
+  user_id bigint [pk, note: 'PK đồng thời là user FK; API/TypeScript dạng chuỗi']
+  approved_application_id bigint [not null, unique]
+  shop_name varchar(255) [not null]
+  description text
+  default_ship_from_address_id bigint [not null, note: 'Địa chỉ xuất hàng mặc định; phải thuộc user và chưa bị soft-delete; API/TypeScript dạng chuỗi']
+  status seller_profile_status [not null, default: 'active']
+  approved_at datetime(6) [not null]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+
+  indexes {
+    status [name: 'idx_seller_profiles_status']
+  }
+
+  checks {
+    `created_at >= approved_at` [name: 'chk_seller_profiles_created_after_approval']
+    `updated_at >= created_at` [name: 'chk_seller_profiles_updated_after_create']
+  }
+}
+
+// Bảng Vận đơn giao hàng; địa chỉ nhận hàng chỉ được đọc từ snapshot trong orders,
+// không lưu address_id riêng để tránh hai nguồn địa chỉ mâu thuẫn.
+Table shipping {
+  id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
+  order_id bigint [not null, unique, note: 'API/TypeScript dạng chuỗi']
+  shipper_id bigint
+  status varchar
+  tracking_code varchar
+}
+
+// Bảng Phòng Chat
+Table conversations {
+  id bigint [pk, increment]
+  last_message_id bigint [unique, note: 'Tin nhắn cuối cùng; giữ lại để đối chiếu và xác định vị trí tin nhắn']
+  last_message_preview varchar(500) [note: 'Nội dung rút gọn dùng cho danh sách chat; media hiển thị dạng [Hình ảnh], [Video]...']
+  last_message_sender_id bigint [note: 'Người gửi tin nhắn cuối cùng; API/TypeScript dạng chuỗi']
+  last_message_type varchar [note: 'Loại tin nhắn cuối: text, image, video, file, product hoặc system']
+  last_message_at datetime [note: 'Dùng để sắp xếp conversation mới nhất']
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  indexes {
+    last_message_at [name: 'idx_conversations_last_message_at']
+  }
+}
+
+// Bảng Nội dung Tin nhắn
+Table messages {
+  id bigint [pk, increment]
+  conversation_id bigint [not null]
+  sender_id bigint [not null, note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
+  client_message_id varchar(100) [not null, note: 'ID duy nhất do client tạo để retry không sinh tin nhắn trùng']
+  content text
+  type varchar [not null, note: 'text, image, video, file, product hoặc system']
+  created_at datetime [not null]
+
+  indexes {
+    (conversation_id, created_at) [name: 'idx_messages_conversation_time']
+    (conversation_id, id) [name: 'idx_messages_conversation_id', note: 'Tối ưu đếm tin chưa đọc nằm sau last_read_message_id']
+    (sender_id, client_message_id) [unique, name: 'uq_messages_sender_client_id']
+  }
+}
+
+// Thành viên của Phòng Chat và trạng thái đọc riêng của từng User
+Table conversation_participants {
+  conversation_id bigint [not null]
+  user_id bigint [not null]
+  last_read_message_id bigint [note: 'Tin nhắn cuối cùng thực sự hiển thị cho user; backend chỉ tiến mốc, không tự lấy message mới nhất']
+  last_read_at datetime
+  unread_count int [not null, default: 0, note: 'Số tin chưa đọc được cập nhật khi có message mới']
+
+  indexes {
+    (conversation_id, user_id) [pk]
+    (user_id, conversation_id) [name: 'idx_conversation_participants_user']
+  }
+
+  checks {
+    `unread_count >= 0` [name: 'chk_conversation_participants_unread_non_negative']
+  }
+}
+
+// ==============================================================================
+// KHAI BÁO KHÓA NGOẠI (FOREIGN KEYS)
+// ==============================================================================
+Ref: user_codes.user_id > users.id
+Ref: wallets.user_id - users.id
+Ref: transactions.wallet_id > wallets.id
+Ref: wallet_entries.wallet_id > wallets.id
+Ref: wallet_entries.operation_id > wallet_operations.id
+Ref: wallet_operations.reverses_operation_id > wallet_operations.id
+Ref: reward_appeals.proof_id > reward_proofs.id
+Ref: reward_appeals.user_id > users.id
+Ref: reward_proofs.user_id > users.id
+Ref: proof_achievements.proof_id > reward_proofs.id
+Ref: proof_achievements.rule_id > reward_rules.id
+Ref: ai_evaluation_logs.proof_id > reward_proofs.id
+Ref: product_variants.product_id > products.id
+Ref: categories.parent_id > categories.id
+Ref: brands.category_id > categories.id
+Ref: media_assets.uploader_id > users.id
+Ref: comments.product_id > products.id
+Ref: comments.user_id > users.id
+Ref: comment_media.comment_id > comments.id [delete: cascade]
+Ref: comment_media.media_asset_id > media_assets.id
+Ref: likes.product_id > products.id
+Ref: likes.user_id > users.id
+Ref: rates.user_id > users.id
+Ref: rates.reviewer_id > users.id
+Ref: rates.product_id > products.id
+Ref: rates.purchase_id > orders.id
+Ref: reports.product_id > products.id
+Ref: reports.user_id > users.id
+Ref: saved_searches.user_id > users.id
+Ref: Wards.province_id > Provinces.id
+Ref: addresses.user_id > users.id
+Ref: addresses.ward_id > Wards.id
+Ref: seller_applications.applicant_id > users.id
+Ref: seller_applications.reviewed_by > users.id
+Ref: seller_applications.ship_from_address_id > addresses.id
+Ref: seller_profiles.user_id - users.id
+Ref: seller_profiles.approved_application_id - seller_applications.id
+Ref: seller_profiles.default_ship_from_address_id > addresses.id
+Ref: shipping.order_id - orders.id
+Ref: shipping.shipper_id > users.id
+Ref: order_timelines.order_id > orders.id
+Ref: order_timelines.changed_by > users.id
+Ref: orders.buyer_id > users.id
+Ref: orders.seller_id > seller_profiles.user_id
+Ref: orders.buyer_address_id > addresses.id
+Ref: orders.seller_address_id > addresses.id
+Ref: refunds.order_id - orders.id
+Ref: refunds.requested_by > users.id
+Ref: refunds.responded_by > users.id
+Ref: order_items.order_id > orders.id
+Ref: order_items.product_id > products.id
+Ref: order_items.variant_id > product_variants.id
+Ref: inventory_movements.variant_id > product_variants.id
+Ref: inventory_movements.order_item_id > order_items.id
+Ref: inventory_movements.created_by > users.id
+Ref: cart_items.user_id > users.id
+Ref: cart_items.variant_id > product_variants.id
+Ref: products.seller_id > seller_profiles.user_id
+Ref: products.ship_from_id > addresses.id
+Ref: products.category_id > categories.id
+Ref: products.brand_id > brands.id
+Ref: messages.conversation_id > conversations.id
+Ref: messages.sender_id > users.id
+Ref: conversations.last_message_id - messages.id
+Ref: conversations.last_message_sender_id > users.id
+Ref: conversation_participants.conversation_id > conversations.id
+Ref: conversation_participants.user_id > users.id
+Ref: conversation_participants.last_read_message_id > messages.id
+Ref: user_follows.follower_id > users.id
+Ref: user_follows.followee_id > users.id
+Ref: notifications.user_id > users.id
+Ref: notifications.actor_id > users.id
+Ref: dev_tokens.user_id > users.id
+Ref: user_blocks.blocker_id > users.id
+Ref: user_blocks.blocked_id > users.id
+Ref: push_settings.user_id - users.id

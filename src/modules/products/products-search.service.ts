@@ -38,7 +38,7 @@ export class ProductsSearchService {
         },
         mappings: {
           properties: {
-            id: { type: 'integer' },
+            id: { type: 'keyword' },
             title: {
               type: 'text',
               analyzer: 'vietnamese_analyzer',
@@ -48,9 +48,10 @@ export class ProductsSearchService {
               type: 'text',
               analyzer: 'vietnamese_analyzer',
             },
-            price: { type: 'double' },
-            category_id: { type: 'integer' },
-            brand_id: { type: 'integer' },
+            min_price: { type: 'double' },
+            max_price: { type: 'double' },
+            category_id: { type: 'keyword' },
+            brand_id: { type: 'keyword' },
             created_at: { type: 'date' },
           },
         },
@@ -67,7 +68,8 @@ export class ProductsSearchService {
         id: product.id,
         title: product.title,
         description: product.description,
-        price: product.price,
+        min_price: product.min_price,
+        max_price: product.max_price,
         category_id: product.category_id,
         brand_id: product.brand_id,
         created_at: product.created_at,
@@ -76,7 +78,7 @@ export class ProductsSearchService {
   }
 
   // Xóa sản phẩm khỏi index
-  async removeProduct(productId: number) {
+  async removeProduct(productId: string) {
     try {
       await this.elasticsearchService.delete({
         index: this.indexName,
@@ -93,8 +95,8 @@ export class ProductsSearchService {
   // Tìm kiếm theo keyword và bộ lọc
   async search(
     keyword: string,
-    categoryId?: number,
-    brandId?: number,
+    categoryId?: string,
+    brandId?: string,
     priceMin?: number,
     priceMax?: number,
     index: number = 0,
@@ -125,10 +127,12 @@ export class ProductsSearchService {
       filterQueries.push({ term: { brand_id: brandId } });
     }
     if (priceMin !== undefined || priceMax !== undefined) {
-      const range: any = {};
-      if (priceMin !== undefined) range.gte = priceMin;
-      if (priceMax !== undefined) range.lte = priceMax;
-      filterQueries.push({ range: { price: range } });
+      if (priceMin !== undefined) {
+        filterQueries.push({ range: { max_price: { gte: priceMin } } });
+      }
+      if (priceMax !== undefined) {
+        filterQueries.push({ range: { min_price: { lte: priceMax } } });
+      }
     }
 
     const result = await this.elasticsearchService.search<any>({
@@ -148,6 +152,6 @@ export class ProductsSearchService {
     });
 
     const hits = result.hits.hits;
-    return hits.map((item) => item._source.id as number);
+    return hits.map((item) => item._source.id as string);
   }
 }

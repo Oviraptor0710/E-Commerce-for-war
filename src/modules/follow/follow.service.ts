@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
-import { APP_RESPONSE } from '../../common/constants/response.constants';
+import {
+  APP_RESPONSE,
+  buildResponse,
+} from '../../common/constants/response.constants';
 import { ApiResponse } from '../../common/interfaces/api-response.interface';
 import { User } from '../users/entities/user.entity';
 import { SetUserFollowDto } from './dto/set-user-follow.dto';
@@ -9,6 +12,7 @@ import { GetListFollowedDto } from './dto/get-list-followed.dto';
 import { UserFollow } from './entities/user-follow.entity';
 import { UserBlock } from '../blocks/entities/user-block.entity';
 import { GetListFollowingDto } from './dto/get-list-following.dto';
+import { isCanonicalPositiveIntegerString } from '../../common/validation';
 
 type SetUserFollowResponseData = {
   followee_id: string;
@@ -31,10 +35,10 @@ export class FollowService {
   ) {}
 
   async setUserFollow(
-    currentUserId: number,
+    currentUserId: string,
     dto: SetUserFollowDto,
   ): Promise<ApiResponse<SetUserFollowResponseData | null>> {
-    if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
+    if (!isCanonicalPositiveIntegerString(currentUserId)) {
       return this.fail(
         APP_RESPONSE.TOKEN_INVALID.code,
         APP_RESPONSE.TOKEN_INVALID.message,
@@ -53,17 +57,10 @@ export class FollowService {
       );
     }
 
-    const followeeId = Number(dto.followee_id);
-    const action = String(dto.action).trim().toLowerCase();
+    const followeeId = dto.followee_id;
+    const action = dto.action.trim().toLowerCase();
 
-    if (Number.isNaN(followeeId)) {
-      return this.fail(
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.code,
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.message,
-      );
-    }
-
-    if (!Number.isInteger(followeeId) || followeeId <= 0) {
+    if (!isCanonicalPositiveIntegerString(followeeId)) {
       return this.fail(
         APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
         APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
@@ -173,7 +170,7 @@ export class FollowService {
       ]);
 
       return this.ok({
-        followee_id: String(followeeId),
+        followee_id: followeeId,
         is_following: action === 'follow',
         follow_count: followCount,
         following_count: followingCount,
@@ -194,10 +191,10 @@ export class FollowService {
   }
 
   async getListFollowed(
-    currentUserId: number,
+    currentUserId: string,
     dto: GetListFollowedDto,
   ): Promise<ApiResponse<any[] | null>> {
-    if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
+    if (!isCanonicalPositiveIntegerString(currentUserId)) {
       return this.fail(
         APP_RESPONSE.TOKEN_INVALID.code,
         APP_RESPONSE.TOKEN_INVALID.message,
@@ -218,19 +215,10 @@ export class FollowService {
       );
     }
 
-    const userId = Number(dto.user_id);
-    const index = Number(dto.index);
-    const count = Number(dto.count);
-
-    if (Number.isNaN(userId) || Number.isNaN(index) || Number.isNaN(count)) {
-      return this.fail(
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.code,
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.message,
-      );
-    }
+    const { user_id: userId, index, count } = dto;
 
     if (
-      !Number.isInteger(userId) ||
+      !isCanonicalPositiveIntegerString(userId) ||
       !Number.isInteger(index) ||
       !Number.isInteger(count)
     ) {
@@ -240,7 +228,7 @@ export class FollowService {
       );
     }
 
-    if (userId <= 0 || index < 0 || count <= 0) {
+    if (index < 0 || count <= 0) {
       return this.fail(
         APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
         APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
@@ -318,7 +306,7 @@ export class FollowService {
           if (!user) return null;
 
           return {
-            id: String(user.id),
+            id: user.id,
             username: user.username,
             image: user.avatar,
             followed: followingIdSet.has(user.id) ? 1 : 0,
@@ -327,7 +315,7 @@ export class FollowService {
         .filter(Boolean);
 
       return this.okList(data as any[]);
-    } catch (error) {
+    } catch {
       return this.fail(
         APP_RESPONSE.EXCEPTION_ERROR.code,
         APP_RESPONSE.EXCEPTION_ERROR.message,
@@ -336,10 +324,10 @@ export class FollowService {
   }
 
   async getListFollowing(
-    currentUserId: number,
+    currentUserId: string,
     dto: GetListFollowingDto,
   ): Promise<ApiResponse<any[] | null>> {
-    if (!Number.isInteger(currentUserId) || currentUserId <= 0) {
+    if (!isCanonicalPositiveIntegerString(currentUserId)) {
       return this.fail(
         APP_RESPONSE.TOKEN_INVALID.code,
         APP_RESPONSE.TOKEN_INVALID.message,
@@ -360,19 +348,10 @@ export class FollowService {
       );
     }
 
-    const userId = Number(dto.user_id);
-    const index = Number(dto.index);
-    const count = Number(dto.count);
-
-    if (Number.isNaN(userId) || Number.isNaN(index) || Number.isNaN(count)) {
-      return this.fail(
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.code,
-        APP_RESPONSE.PARAMETER_TYPE_INVALID.message,
-      );
-    }
+    const { user_id: userId, index, count } = dto;
 
     if (
-      !Number.isInteger(userId) ||
+      !isCanonicalPositiveIntegerString(userId) ||
       !Number.isInteger(index) ||
       !Number.isInteger(count)
     ) {
@@ -382,7 +361,7 @@ export class FollowService {
       );
     }
 
-    if (userId <= 0 || index < 0 || count <= 0) {
+    if (index < 0 || count <= 0) {
       return this.fail(
         APP_RESPONSE.PARAMETER_VALUE_INVALID.code,
         APP_RESPONSE.PARAMETER_VALUE_INVALID.message,
@@ -442,12 +421,13 @@ export class FollowService {
       });
 
       // current user có đang follow những người này không
-      const currentUserFollowingRelations = await this.userFollowRepository.find({
-        where: {
-          follower_id: currentUserId,
-          followee_id: In(followingIds),
-        },
-      });
+      const currentUserFollowingRelations =
+        await this.userFollowRepository.find({
+          where: {
+            follower_id: currentUserId,
+            followee_id: In(followingIds),
+          },
+        });
 
       const followingIdSet = new Set(
         currentUserFollowingRelations.map((item) => item.followee_id),
@@ -461,7 +441,7 @@ export class FollowService {
           if (!user) return null;
 
           return {
-            id: String(user.id),
+            id: user.id,
             username: user.username,
             image: user.avatar,
             followed: followingIdSet.has(user.id) ? 1 : 0,
@@ -470,7 +450,7 @@ export class FollowService {
         .filter(Boolean);
 
       return this.okList(data as any[]);
-    } catch (error) {
+    } catch {
       return this.fail(
         APP_RESPONSE.EXCEPTION_ERROR.code,
         APP_RESPONSE.EXCEPTION_ERROR.message,
@@ -481,19 +461,11 @@ export class FollowService {
   private ok(
     data: SetUserFollowResponseData,
   ): ApiResponse<SetUserFollowResponseData> {
-    return {
-      code: APP_RESPONSE.OK.code,
-      message: APP_RESPONSE.OK.message,
-      data,
-    };
+    return buildResponse(APP_RESPONSE.OK, data);
   }
 
   private fail(code: string, message: string): ApiResponse<null> {
-    return {
-      code,
-      message,
-      data: null,
-    };
+    return buildResponse({ code, message }, null);
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
@@ -504,10 +476,6 @@ export class FollowService {
   }
 
   private okList(data: any[]): ApiResponse<any[]> {
-    return {
-      code: APP_RESPONSE.OK.code,
-      message: APP_RESPONSE.OK.message,
-      data,
-    };
+    return buildResponse(APP_RESPONSE.OK, data);
   }
 }

@@ -4,6 +4,7 @@ import {
   ValidationError,
   ValidationPipe as NestValidationPipe,
 } from '@nestjs/common';
+import { APP_RESPONSE, buildResponse } from './constants/response.constants';
 
 @Injectable()
 export class ValidationPipe extends NestValidationPipe {
@@ -18,26 +19,13 @@ export class ValidationPipe extends NestValidationPipe {
         const hasMissingField = messages.includes('1002');
         const hasInvalidType = messages.includes('1003');
 
-        // Mặc định là 1004 (Giá trị không hợp lệ)
-        let errorCode = '1004';
-        let errorMessage = 'Parameter value is invalid.';
+        const response = hasMissingField
+          ? APP_RESPONSE.PARAMETER_NOT_ENOUGH
+          : hasInvalidType
+            ? APP_RESPONSE.PARAMETER_TYPE_INVALID
+            : APP_RESPONSE.PARAMETER_VALUE_INVALID;
 
-        // Mức độ ưu tiên cao nhất: Lỗi 1002 (Thiếu tham số)
-        if (hasMissingField) {
-          errorCode = '1002';
-          errorMessage = 'Parameter is not enough.';
-        }
-        // Ưu tiên thứ 2: Lỗi 1003 (Sai kiểu dữ liệu)
-        else if (hasInvalidType) {
-          errorCode = '1003';
-          errorMessage = 'Parameter type is invalid.';
-        }
-
-        return new BadRequestException({
-          code: errorCode,
-          message: errorMessage,
-          data: null,
-        });
+        return new BadRequestException(buildResponse(response, null));
       },
     });
   }

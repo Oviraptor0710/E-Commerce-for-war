@@ -1,11 +1,9 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsPositiveBigIntId } from '../../../common/validation';
 
 export class SellerMarkAsShippedDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   purchase_id: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsPositiveBigIntId()
   buyer_id: string;
 }

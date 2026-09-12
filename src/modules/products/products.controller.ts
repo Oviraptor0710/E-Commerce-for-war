@@ -26,10 +26,23 @@ import { SearchDto } from '../searches/dto/search.dto';
 import { ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUserListingsDto } from './dto/get_user_listing.dto';
 import { APP_RESPONSE, buildResponse } from '../constants/response.constants';
+import { ParsePositiveBigIntIdPipe } from '../../common/validation';
+import { ApiDataResponse } from '../../common/swagger/api-data-response.decorator';
+import {
+  ProductBrandResponseDto,
+  ProductCategoryResponseDto,
+  ProductCommentResponseDto,
+  ProductDetailResponseDto,
+  ProductLikeResponseDataDto,
+  ProductMutationResponseDto,
+  ProductReportResponseDataDto,
+  ProductSearchResponseDto,
+  ProductSummaryResponseDto,
+} from './dto/product-response.dto';
 
 interface RequestWithUser extends Request {
   user: {
-    id: number;
+    id: string;
   };
 }
 
@@ -39,6 +52,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post('get_categories')
+  @ApiDataResponse({ status: 201, type: ProductCategoryResponseDto, isArray: true })
   async getCategories(@Body() dto: GetCategoriesDto) {
     try {
       const data = await this.productsService.getCategories(
@@ -59,6 +73,7 @@ export class ProductsController {
   }
 
   @Post('get_list_brands')
+  @ApiDataResponse({ status: 201, type: ProductBrandResponseDto, isArray: true })
   async getListBrands(@Body() dto: GetListBrandsDto) {
     try {
       const data = await this.productsService.getListBrands(
@@ -79,6 +94,7 @@ export class ProductsController {
   }
 
   @Post('get_products')
+  @ApiDataResponse({ status: 201, type: ProductDetailResponseDto })
   @UseGuards(OptionalAuthGuard)
   async getProducts(@Req() req: RequestWithUser, @Body() dto: GetProductsDto) {
     try {
@@ -105,6 +121,7 @@ export class ProductsController {
   }
 
   @Post('get_list_products')
+  @ApiDataResponse({ status: 201, type: ProductSummaryResponseDto, isArray: true })
   @UseGuards(OptionalAuthGuard)
   async getListProducts(
     @Req() req: RequestWithUser,
@@ -126,6 +143,7 @@ export class ProductsController {
   }
 
   @Post('get_comments_product')
+  @ApiDataResponse({ status: 201, type: ProductCommentResponseDto, isArray: true })
   async getCommentsProduct(
     @Req() req: RequestWithUser,
     @Body() dto: GetCommentsProductDto,
@@ -169,59 +187,31 @@ export class ProductsController {
 
   @Post('set_comments_product')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: ProductCommentResponseDto })
   async setCommentsProduct(
     @Req() req: RequestWithUser,
     @Body() dto: SetCommentsProductDto,
   ) {
-    try {
-      const userId = req.user?.id;
-
-      if (!userId) {
-        return buildResponse(APP_RESPONSE.TOKEN_INVALID, null);
-      }
-
-      const product = await this.productsService.getProductById(dto.product_id);
-
-      if (!product) {
-        return buildResponse(APP_RESPONSE.PRODUCT_NOT_EXISTED, null);
-      }
-
-      const user = await this.productsService.getUserById(userId);
-
-      if (!user) {
-        return buildResponse(APP_RESPONSE.USER_NOT_EXIST, null);
-      }
-
-      const isBlocked = await this.productsService.isUserBlockedWithSeller(
-        userId,
-        product.seller_id,
-      );
-
-      if (isBlocked) {
-        return buildResponse(APP_RESPONSE.NOT_ACCESS, null);
-      }
-
-      const data = await this.productsService.setCommentsProduct(
-        dto.product_id,
-        userId,
-        dto.content,
-        dto.index,
-        dto.count,
-      );
-
-      return buildResponse(APP_RESPONSE.OK, data);
-    } catch (error) {
-      console.error('set_comments_product error:', error);
-      return buildResponse(APP_RESPONSE.EXCEPTION_ERROR, null);
+    const userId = req.user?.id;
+    if (!userId) {
+      return buildResponse(APP_RESPONSE.TOKEN_INVALID, null);
     }
+
+    const data = await this.productsService.setCommentsProduct(
+      dto.product_id,
+      userId,
+      dto.content,
+      dto.media_ids ?? [],
+      dto.idempotency_key,
+    );
+
+    return buildResponse(APP_RESPONSE.OK, data);
   }
 
   @Post('like_product')
   @UseGuards(AuthGuard)
-  async likeProduct(
-    @Req() req: RequestWithUser,
-    @Body() dto: LikeProductDto,
-  ) {
+  @ApiDataResponse({ status: 201, type: ProductLikeResponseDataDto })
+  async likeProduct(@Req() req: RequestWithUser, @Body() dto: LikeProductDto) {
     try {
       const userId = req.user?.id;
 
@@ -264,6 +254,7 @@ export class ProductsController {
 
   @Post('report_product')
   @UseGuards(AuthGuard)
+  @ApiDataResponse({ status: 201, type: ProductReportResponseDataDto })
   async reportProduct(
     @Req() req: RequestWithUser,
     @Body() dto: ReportProductDto,
@@ -315,6 +306,7 @@ export class ProductsController {
   }
 
   @Post('search')
+  @ApiDataResponse({ status: 201, type: ProductSearchResponseDto, isArray: true })
   async search(@Body() dto: SearchDto) {
     try {
       const hasCondition =
@@ -354,6 +346,7 @@ export class ProductsController {
   })
   @UseGuards(AuthGuard)
   @Post('add_product')
+  @ApiDataResponse({ status: 201, type: ProductMutationResponseDto })
   async create(
     @Body() dto: CreateProductDto,
     @Req() req: RequestWithUser,
@@ -366,8 +359,9 @@ export class ProductsController {
   })
   @UseGuards(AuthGuard)
   @Patch('update/:id')
+  @ApiDataResponse({ type: ProductMutationResponseDto })
   async update(
-    @Param('id') id: number,
+    @Param('id', ParsePositiveBigIntIdPipe) id: string,
     @Req() req: RequestWithUser,
     @Body() updateProductDto: UpdateProductDto,
   ): Promise<any> {
@@ -379,7 +373,11 @@ export class ProductsController {
   })
   @UseGuards(AuthGuard)
   @Delete('delete/:id')
-  async remove(@Param('id') id: number, @Req() req: RequestWithUser) {
+  @ApiDataResponse()
+  async remove(
+    @Param('id', ParsePositiveBigIntIdPipe) id: string,
+    @Req() req: RequestWithUser,
+  ) {
     return this.productsService.remove(id, req.user?.id);
   }
 
@@ -388,6 +386,7 @@ export class ProductsController {
   })
   @UseGuards(AuthGuard)
   @Post('get_user_listings')
+  @ApiDataResponse({ status: 201, type: ProductSummaryResponseDto, isArray: true })
   async getUserListings(
     @Req() req: RequestWithUser,
     @Body() query: GetUserListingsDto,

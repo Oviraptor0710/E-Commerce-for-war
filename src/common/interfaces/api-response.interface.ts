@@ -1,5 +1,5 @@
-export interface ApiResponse<T = any> {
-    code: string;
-    message: string;
-    data: T | null;
-  }
+export interface ApiResponse<T = unknown> {
+  code: string;
+  message: string;
+  data: T | null;
+}

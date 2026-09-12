@@ -10,7 +10,16 @@ import { OrderItem } from '../orders/entities/order_item.entity';
 import { Product } from '../products/entities/product.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Rate, User, UserBlock, Order, OrderItem, Product])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Rate,
+      User,
+      UserBlock,
+      Order,
+      OrderItem,
+      Product,
+    ]),
+  ],
   controllers: [RatesController],
   providers: [RatesService],
   exports: [RatesService],

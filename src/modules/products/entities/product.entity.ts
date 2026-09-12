@@ -7,8 +7,9 @@ import {
   JoinColumn,
   DeleteDateColumn,
   OneToMany,
+  Index,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { SellerProfile } from '../../sellers/entities/seller-profile.entity';
 import { ProductVariant } from './product_variant.entity';
 import { Comment } from './comment.entity';
 import { Like } from './like.entity';
@@ -17,35 +18,38 @@ import { OrderItem } from '../../orders/entities/order_item.entity';
 import { Address } from '../../orders/entities/address.entity';
 import { Category } from './category.entity';
 import { Brand } from './brand.entity';
-import { CartItem } from '../../orders/entities/cart-item.entity';
 @Entity('products')
+@Index('idx_products_category_active', ['category_id', 'deleted_at'])
+@Index('idx_products_brand_active', ['brand_id', 'deleted_at'])
+@Index('idx_products_min_price', ['min_price'])
+@Index('idx_products_max_price', ['max_price'])
 export class Product {
-  @PrimaryGeneratedColumn()
-  id: number;
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id: string;
+
+  @Column({ type: 'bigint' })
+  seller_id: string;
+
+  @Column({ type: 'bigint' })
+  ship_from_id: string;
+
+  @Column({ type: 'bigint' })
+  category_id: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  brand_id: string | null;
 
   @Column()
-  seller_id: number;
-
-  @Column()
-  ship_from_id: number;
-
-  @Column({ nullable: true })
-  category_id: number;
-
-  @Column({ nullable: true })
-  brand_id: number;
-
-  @Column({ nullable: true })
   title: string;
 
   @Column('text', { nullable: true })
   description: string;
 
-  @Column('decimal', { nullable: true })
-  price: number;
+  @Column('decimal', { precision: 20, scale: 3 })
+  min_price: number;
 
-  @Column('decimal', { nullable: true })
-  price_discount: number;
+  @Column('decimal', { precision: 20, scale: 3 })
+  max_price: number;
 
   @Column({ type: 'json', nullable: true })
   videos: { url: string; thumb: string }[];
@@ -59,9 +63,15 @@ export class Product {
   @Column('simple-array', { nullable: true })
   image_urls: string[];
 
-  @ManyToOne(() => User, (user) => user.products)
-  @JoinColumn({ name: 'seller_id' })
-  seller: User;
+  @ManyToOne(() => SellerProfile, (profile) => profile.products, {
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({
+    name: 'seller_id',
+    referencedColumnName: 'user_id',
+    foreignKeyConstraintName: 'fk_products_seller_profile',
+  })
+  seller_profile: SellerProfile;
 
   @OneToMany(() => ProductVariant, (variant) => variant.product)
   variants: ProductVariant[];
@@ -78,18 +88,24 @@ export class Product {
   @OneToMany(() => OrderItem, (orderItem) => orderItem.product)
   order_items: OrderItem[];
 
-  @OneToMany(() => CartItem, (cartItem) => cartItem.product)
-  cart_items: CartItem[];
-
   @ManyToOne(() => Address, (address) => address.products_shipped_from)
-  @JoinColumn({ name: 'ship_from_id' })
+  @JoinColumn({
+    name: 'ship_from_id',
+    foreignKeyConstraintName: 'fk_products_ship_from',
+  })
   ship_from: Address;
 
   @ManyToOne(() => Category, (category) => category.products)
-  @JoinColumn({ name: 'category_id' })
+  @JoinColumn({
+    name: 'category_id',
+    foreignKeyConstraintName: 'fk_products_category',
+  })
   category: Category;
 
   @ManyToOne(() => Brand, (brand) => brand.products)
-  @JoinColumn({ name: 'brand_id' })
+  @JoinColumn({
+    name: 'brand_id',
+    foreignKeyConstraintName: 'fk_products_brand',
+  })
   brand: Brand;
 }
