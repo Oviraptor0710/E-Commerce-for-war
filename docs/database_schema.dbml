@@ -1,18 +1,14 @@
 
-// SÀN THƯƠNG MẠI ĐIỆN TỬ THỜI CHIẾN (WAR-TIME E-COMMERCE WITH COMBAT PROOF AI)
-// Database Schema Definition (DBML)
-// Quy ước điểm: mọi giá trị điểm dùng decimal(20,3), đơn vị nhỏ nhất là 0.001 điểm.
-
-
+// SÀN THƯƠNG MẠI ĐIỆN TỬ THỜI CHIẾN 
 // Buyer là khả năng mặc định của mọi tài khoản user đang hoạt động.
 // Quyền seller được biểu diễn riêng bằng seller_profiles sau khi admin duyệt,
 // không phải là một role loại trừ quyền mua hàng.
+
 Enum account_role {
   user [note: 'Tài khoản thông thường; mặc định có quyền mua hàng']
   admin [note: 'Quản trị viên hệ thống']
 }
 
-// Bảng lưu trữ thông tin cốt lõi của người dùng
 Table users {
   id bigint [pk, increment, note: 'BIGINT ID; API/TypeScript truyền dạng chuỗi để không mất độ chính xác']
   username varchar [not null, unique]
@@ -93,7 +89,6 @@ Table push_settings {
   }
 }
 
-// Các loại thông báo 
 Enum notification_type {
   // Tương tác sản phẩm và xã hội
   product_liked [note: 'Có người thích sản phẩm của người nhận']
@@ -146,7 +141,7 @@ Enum notification_target_type {
   seller_application [note: 'Trang chi tiết và kết quả đơn đăng ký seller']
 }
 
-// Bảng lưu thông báo trong ứng dụng; push notification là một kênh phân phối của bản ghi này
+// Bảng lưu thông báo trong ứng dụng
 Table notifications {
   id bigint [pk, increment]
   user_id bigint [not null, note: 'Người nhận thông báo; API/TypeScript dạng chuỗi']
@@ -178,7 +173,7 @@ Table notifications {
   }
 }
 
-// Bảng lưu trữ bản tin hệ thống
+// Bảng lưu trữ tin tức
 Table news {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   title text
@@ -257,7 +252,7 @@ Enum reward_appeal_status {
   rejected
 }
 
-// Bảng Ví điểm; số dư tại đây là giá trị đọc nhanh, ledger là lịch sử chính thức
+// Bảng Ví điểm
 Table wallets {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   user_id bigint [not null, unique, note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
@@ -276,7 +271,6 @@ Table wallets {
 }
 
 // Bảng lịch sử giao dịch cũ; chỉ dùng để đọc tương thích trong giai đoạn chuyển sang wallet_operations/wallet_entries.
-// Không dùng bảng này để ghi thêm giao dịch mới sau khi ledger đã hoạt động.
 Table transactions {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   wallet_id bigint [not null, note: 'Tham chiếu wallets.id; API/TypeScript dạng chuỗi']
@@ -310,9 +304,6 @@ Table wallet_operations {
     `type <> 'reversal' OR reverses_operation_id IS NOT NULL` [name: 'chk_wallet_operations_reversal_reference']
   }
 }
-
-// MySQL không cho CHECK tham chiếu cột AUTO_INCREMENT để kiểm tra
-// reverses_operation_id <> id; backend phải chặn reversal tự tham chiếu.
 
 // Sổ cái bất biến lưu từng thay đổi cụ thể trên từng bucket của wallet
 Table wallet_entries {
@@ -437,10 +428,6 @@ Table reward_appeals {
 }
 
 // Bảng Thông tin Sản phẩm.
-// min_price và max_price là dữ liệu tổng hợp để đọc nhanh trên danh sách sản phẩm,
-// được tính từ effective_price = COALESCE(product_variants.discount_price, product_variants.price)
-// của các variant chưa bị soft-delete, không phụ thuộc vào stock.
-// Giá chính thức của giao dịch luôn nằm tại product_variants.
 Table products {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   seller_id bigint [not null, note: 'Tham chiếu seller_profiles.user_id; API/TypeScript dạng chuỗi; backend chỉ cho phép seller profile active tạo hoặc sửa sản phẩm']
@@ -470,12 +457,6 @@ Table products {
 }
 
 // Bảng Biến thể sản phẩm (Size, Màu sắc...).
-// Mọi sản phẩm có thể bán phải có ít nhất một variant; sản phẩm không có lựa chọn
-// sử dụng một default variant với size/color để null.
-// Khi thêm, sửa giá, giảm giá hoặc soft-delete variant, min_price/max_price của
-// product cha phải được tính lại trong cùng một database transaction.
-// Cart không giữ hàng. Khi checkout, backend phải khóa các variant theo id tăng dần,
-// kiểm tra stock và trừ kho trong cùng transaction tạo order, order_items và thanh toán.
 Table product_variants {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   product_id bigint [not null]
@@ -501,8 +482,6 @@ Table product_variants {
 }
 
 // Loại biến động làm thay đổi product_variants.stock.
-// return_restock được dành sẵn cho giai đoạn xử lý trả hàng vật lý sau này;
-// hoàn điểm không tự động cộng lại stock.
 Enum inventory_movement_type {
   initial_stock [note: 'Tồn kho ban đầu khi seller tạo variant']
   seller_adjustment [note: 'Seller hoặc admin điều chỉnh tồn kho có ghi lý do']
@@ -533,7 +512,7 @@ Table categories {
   }
 }
 
-// Bảng Thương hiệu / Nhà cung cấp
+// Bảng Thương hiệu 
 Table brands {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   name varchar
@@ -557,8 +536,6 @@ Enum media_status {
 }
 
 // File thật nằm trên Cloudflare R2; bảng này chỉ lưu object key và metadata.
-// Upload tạm hết hạn sau 24 giờ. Backend phải kiểm tra magic bytes; ảnh chỉ nhận
-// JPEG/PNG/WebP <= 3 MiB, video chỉ nhận MP4/WebM/MOV <= 100 MiB và <= 60 giây.
 Table media_assets {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   uploader_id bigint [not null, note: 'User sở hữu upload; chỉ chính user này được attach media']
@@ -587,7 +564,6 @@ Table media_assets {
 
 // Bảng Bình luận trên trang sản phẩm.
 // Chỉ user từng nhận thành công đúng sản phẩm từ đúng seller mới được bình luận;
-// đơn đã hoàn tiền vẫn giữ quyền bình luận. Một user có thể bình luận nhiều lần.
 Table comments {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   product_id bigint [not null]
@@ -608,8 +584,7 @@ Table comments {
 }
 
 // Liên kết media đã upload với bình luận và bảo toàn thứ tự hiển thị.
-// Quy tắc tối đa 4 ảnh hoặc 1 video, không trộn hai loại, được kiểm tra trong
-// cùng transaction attach media vì CHECK của một hàng không thể kiểm tra nhiều hàng.
+// Quy tắc tối đa 4 ảnh hoặc 1 video, không trộn hai loại
 Table comment_media {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   comment_id bigint [not null]
@@ -676,7 +651,6 @@ Table saved_searches {
 }
 
 // Bảng Giỏ hàng; mỗi dòng đại diện cho đúng một variant được user chọn.
-// Cart không snapshot giá và không giữ tồn kho. Giá/stock phải được kiểm tra lại khi checkout.
 Table cart_items {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   user_id bigint [not null, note: 'Tham chiếu users.id; API/TypeScript dạng chuỗi']
@@ -695,12 +669,6 @@ Table cart_items {
 }
 
 // Trạng thái thực hiện đơn hàng hiện tại; orders.status là nguồn sự thật duy nhất.
-// Luồng hợp lệ phiên bản đầu:
-// pending_confirmation -> confirmed | cancelled
-// confirmed -> shipping | cancelled
-// shipping -> delivered
-// delivered và cancelled là trạng thái kết thúc của luồng thực hiện đơn.
-// Hoàn tiền và giải phóng điểm được theo dõi riêng bằng refund_status và settlement_status.
 Enum order_status {
   pending_confirmation [note: 'Đơn đã được tạo, đang chờ seller xác nhận']
   confirmed [note: 'Seller đã xác nhận và đang chuẩn bị hàng']
@@ -816,11 +784,6 @@ Table refunds {
 }
 
 // Snapshot bất biến của mặt hàng tại thời điểm tạo đơn.
-// product_id và variant_id dùng cho nhận diện/thống kê; màn hình lịch sử phải đọc
-// tên, ảnh, thuộc tính variant và giá từ các trường snapshot bên dưới.
-// Ảnh được sao chép sang object storage riêng; database chỉ lưu object key cố định,
-// không lưu signed URL hoặc dữ liệu nhị phân. Background job xóa ảnh khi thời gian
-// database đã qua media_retention_until thêm 1 ngày, rồi ghi orders.media_purged_at.
 Table order_items {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   order_id bigint [not null, note: 'API/TypeScript dạng chuỗi']
@@ -849,9 +812,6 @@ Table order_items {
 }
 
 // Sổ biến động tồn kho bất biến. Mọi thay đổi product_variants.stock
-// phải tạo một bản ghi tại đây trong cùng database transaction.
-// idempotency_key phải ổn định theo nghiệp vụ, ví dụ:
-// ORDER_STOCK_DEDUCT:{order_id}:{variant_id} hoặc ORDER_STOCK_RESTORE:{order_id}:{variant_id}.
 Table inventory_movements {
   id bigint [pk, increment]
   variant_id bigint [not null]
@@ -879,8 +839,6 @@ Table inventory_movements {
 }
 
 // Nhật ký bất biến của các lần chuyển trạng thái đơn hàng.
-// Bảng này chỉ dùng cho audit/lịch sử; không dùng bản ghi mới nhất để suy ra trạng thái hiện tại.
-// Mỗi lần chuyển trạng thái phải cập nhật orders.status và thêm timeline trong cùng một transaction.
 Table order_timelines {
   id bigint [pk, increment]
   order_id bigint [not null, note: 'API/TypeScript dạng chuỗi']
@@ -903,18 +861,13 @@ Table Provinces {
 }
 
 // Bảng Phường/Xã
-// Tên cột province_id được thống nhất với nghiệp vụ và toàn bộ schema hiện tại.
 Table Wards {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   name varchar
   province_id bigint [not null]
 }
 
-// Sổ địa chỉ của user; một user có thể có nhiều địa chỉ.
-// Nội dung giao hàng (user_id, ward_id, address_detail, receiver_name, phone,
-// full_address) là bất biến sau khi tạo. Muốn thay đổi phải tạo địa chỉ mới.
-// address_name và is_default là metadata có thể cập nhật; thao tác xóa chỉ được
-// soft-delete bằng deleted_at để không làm gãy lịch sử order.
+// Bảng địa chỉ của user; một user có thể có nhiều địa chỉ.
 Table addresses {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   user_id bigint [not null]
@@ -936,9 +889,7 @@ Table addresses {
   }
 }
 
-// Trạng thái xét duyệt đơn đăng ký seller.
-// Đơn đã approved/rejected là lịch sử bất biến; user bị từ chối
-// phải tạo đơn mới nếu muốn nộp lại.
+// Các trạng thái xét duyệt đơn đăng ký seller.
 Enum seller_application_status {
   pending [note: 'Đang chờ admin xét duyệt']
   approved [note: 'Admin đã chấp nhận và seller profile đã được tạo']
@@ -950,9 +901,7 @@ Enum seller_profile_status {
   suspended [note: 'Seller bị tạm ngừng quyền bán nhưng vẫn giữ quyền mua và lịch sử']
 }
 
-// Lịch sử đơn đăng ký seller. Chỉ cho phép một đơn pending trên một user.
-// MySQL không có partial unique index dễ biểu diễn quy tắc này trong DBML;
-// backend phải khóa users row, kiểm tra đơn pending rồi insert trong cùng transaction.
+
 Table seller_applications {
   id bigint [pk, increment]
   applicant_id bigint [not null]
@@ -984,8 +933,6 @@ Table seller_applications {
 }
 
 // Quyền và cấu hình seller sau khi đơn được duyệt.
-// user_id vừa là PK vừa là FK nên một user chỉ có một seller profile.
-// Bản ghi không được hard-delete; khi ngừng quyền bán chỉ chuyển sang suspended.
 Table seller_profiles {
   user_id bigint [pk, note: 'PK đồng thời là user FK; API/TypeScript dạng chuỗi']
   approved_application_id bigint [not null, unique]
@@ -1008,7 +955,6 @@ Table seller_profiles {
 }
 
 // Bảng Vận đơn giao hàng; địa chỉ nhận hàng chỉ được đọc từ snapshot trong orders,
-// không lưu address_id riêng để tránh hai nguồn địa chỉ mâu thuẫn.
 Table shipping {
   id bigint [pk, increment, note: 'API/TypeScript dạng chuỗi']
   order_id bigint [not null, unique, note: 'API/TypeScript dạng chuỗi']
@@ -1068,9 +1014,7 @@ Table conversation_participants {
   }
 }
 
-// ==============================================================================
 // KHAI BÁO KHÓA NGOẠI (FOREIGN KEYS)
-// ==============================================================================
 Ref: user_codes.user_id > users.id
 Ref: wallets.user_id - users.id
 Ref: transactions.wallet_id > wallets.id

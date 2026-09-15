@@ -12,6 +12,7 @@ import { Notification } from './entities/notification.entity';
 import { NotificationTargetType } from './enums/notification-target-type.enum';
 import { NotificationType } from './enums/notification-type.enum';
 import { isCanonicalPositiveIntegerString } from '../../common/validation';
+import { FcmService } from '../../common/firebase/fcm.service';
 
 const NOTIFICATION_TARGET_BY_TYPE: Record<
   NotificationType,
@@ -71,6 +72,7 @@ export class NotificationsService {
     @InjectRepository(Notification)
     private readonly notificationRepo: Repository<Notification>,
     private readonly conversationsGateway: ConversationsGateway,
+    private readonly fcmService: FcmService,
   ) {}
 
   async getNotification(currentUserId: string, body: GetNotiticationDto) {
@@ -226,7 +228,7 @@ export class NotificationsService {
     input: CreateNotificationInput,
   ): Promise<Notification> {
     const result = await this.persistNotification(input, this.notificationRepo);
-    if (result.created) this.emitNotification(result.notification);
+    if (result.created) this.dispatchNotification(result.notification);
     return result.notification;
   }
 
@@ -243,6 +245,11 @@ export class NotificationsService {
       'new_notification',
       notification,
     );
+  }
+
+  dispatchNotification(notification: Notification) {
+    this.emitNotification(notification);
+    void this.fcmService.sendNotification(notification);
   }
 
   async setReadNotification(

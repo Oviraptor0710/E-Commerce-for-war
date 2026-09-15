@@ -22,8 +22,10 @@ export class newsService {
   async getListNews(query: GetListNewsDto) {
     const { index, count } = query;
     if (index === undefined && count === undefined) {
-      const list_news = await this.newsRepo.find();
-      return buildResponse(APP_RESPONSE.OK, list_news);
+      const [list_news, total] = await this.newsRepo.findAndCount({
+        order: { id: 'DESC' },
+      });
+      return buildResponse(APP_RESPONSE.OK, { list_news, total });
     }
     if (index === undefined || count === undefined)
       return APP_RESPONSE.PARAMETER_NOT_ENOUGH;

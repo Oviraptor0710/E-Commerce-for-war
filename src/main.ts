@@ -31,7 +31,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const config = new DocumentBuilder()
-    .setTitle('IT 4788 API')
+    .setTitle('E-Commerce for War API Documentation')
     .setDescription('Tài liệu hướng dẫn sử dụng API hệ thống e-commerce')
     .setVersion('1.0')
     .addBearerAuth(
@@ -49,10 +49,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  // Hầu hết controller hiện trả về cùng một envelope { code, message, data }
-  // thông qua buildResponse(), nhưng không phải endpoint nào cũng có DTO
-  // response riêng. Bổ sung schema chung vào tài liệu Swagger để mọi API đều
-  // hiển thị được cấu trúc response mà không tạo dữ liệu ví dụ giả.
+
   document.components = document.components ?? {};
   document.components.schemas = document.components.schemas ?? {};
   document.components.schemas.ApiResponseEnvelope = {
@@ -97,7 +94,9 @@ async function bootstrap() {
     }
   }
 
-  SwaggerModule.setup('api-docs', app, document);
+  SwaggerModule.setup('api-docs', app, document,{
+    customSiteTitle : 'E-Commerce for War API Documentation',
+  });
 
   await app.listen(process.env.PORT ?? 8000);
 }

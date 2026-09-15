@@ -1,17 +1,20 @@
 import { IsNumber, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class GetListNewsDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'index để hiển thị từ trang',
   })
   @IsNumber()
   @IsOptional()
-  index: number;
-  @ApiProperty({
+  @Type(() => Number)
+  index?: number;
+  @ApiPropertyOptional({
     description: 'Số trang ',
   })
   @IsNumber()
   @IsOptional()
-  count: number;
+  @Type(() => Number)
+  count?: number;
 }

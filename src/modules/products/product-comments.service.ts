@@ -7,8 +7,6 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'crypto';
-import { getApps } from 'firebase-admin/app';
-import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 import {
   DataSource,
   EntityManager,
@@ -25,7 +23,6 @@ import {
   isWithinMysqlSignedBigIntRange,
 } from '../../common/validation';
 import { UserBlock } from '../blocks/entities/user-block.entity';
-import { DevToken } from '../dev_tokens/entities/dev-token.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTargetType } from '../notifications/enums/notification-target-type.enum';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
@@ -86,8 +83,6 @@ export class ProductCommentsService {
     private readonly commentRepository: Repository<Comment>,
     @InjectRepository(CommentMedia)
     private readonly commentMediaRepository: Repository<CommentMedia>,
-    @InjectRepository(DevToken)
-    private readonly devTokenRepository: Repository<DevToken>,
     private readonly notificationsService: NotificationsService,
     private readonly uploadService: UploadService,
   ) {}
@@ -461,7 +456,7 @@ export class ProductCommentsService {
     commentId: string,
   ) {
     try {
-      const notification = await this.notificationsService.createNotification({
+      await this.notificationsService.createNotification({
         recipientId: transactionResult.sellerId!,
         actorId,
         type: NotificationType.PRODUCT_COMMENTED,
@@ -475,48 +470,9 @@ export class ProductCommentsService {
         deduplicationKey: `PRODUCT_COMMENTED:${commentId}`,
       });
 
-      await this.sendPushNotification(
-        transactionResult.sellerId!,
-        'Thông báo mới',
-        `Có người vừa bình luận sản phẩm "${transactionResult.productTitle}" của bạn`,
-        {
-          type: NotificationType.PRODUCT_COMMENTED,
-          target_id: productId,
-          notification_id: notification.id,
-        },
-      );
     } catch (error) {
       console.error(
         `Failed to create notification for comment ${commentId}:`,
-        error,
-      );
-    }
-  }
-
-  private async sendPushNotification(
-    userId: string,
-    title: string,
-    body: string,
-    data: Record<string, unknown>,
-  ) {
-    try {
-      if (!getApps().length) return;
-      const tokens = await this.devTokenRepository.find({
-        where: { user_id: userId, is_active: true },
-      });
-      if (tokens.length === 0) return;
-
-      const message: MulticastMessage = {
-        tokens: tokens.map((token) => token.devtoken),
-        data: Object.fromEntries(
-          Object.entries(data).map(([key, value]) => [key, String(value)]),
-        ),
-        notification: { title, body },
-      };
-      await getMessaging().sendEachForMulticast(message);
-    } catch (error) {
-      console.error(
-        `Failed to send comment notification to user ${userId}:`,
         error,
       );
     }

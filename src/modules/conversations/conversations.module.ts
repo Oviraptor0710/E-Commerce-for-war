@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserBlock } from '../blocks/entities/user-block.entity';
-import { DevToken } from '../dev_tokens/entities/dev-token.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { Product } from '../products/entities/product.entity';
 import { User } from '../users/entities/user.entity';
@@ -21,7 +20,6 @@ import { Message } from './entities/message.entity';
       Message,
       Product,
       UserBlock,
-      DevToken,
     ]),
     ConversationsRealtimeModule,
     NotificationsModule,

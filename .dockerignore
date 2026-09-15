@@ -5,3 +5,4 @@ elasticsearch_data/
 dist/
 .git/
 .idea/
+private-key-fcm.json

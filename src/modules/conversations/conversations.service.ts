@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { getApps } from 'firebase-admin/app';
-import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import {
   APP_RESPONSE,
@@ -9,7 +7,6 @@ import {
 } from '../../common/constants/response.constants';
 import { ApiResponse } from '../../common/interfaces/api-response.interface';
 import { UserBlock } from '../blocks/entities/user-block.entity';
-import { DevToken } from '../dev_tokens/entities/dev-token.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationTargetType } from '../notifications/enums/notification-target-type.enum';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
@@ -84,8 +81,6 @@ export class ConversationsService {
     private readonly productRepo: Repository<Product>,
     @InjectRepository(UserBlock)
     private readonly userBlockRepo: Repository<UserBlock>,
-    @InjectRepository(DevToken)
-    private readonly devTokenRepo: Repository<DevToken>,
   ) {}
 
   private fail(code: string, message: string): ApiResponse<null> {
@@ -94,41 +89,6 @@ export class ConversationsService {
 
   private success(data: unknown): ApiResponse<unknown> {
     return buildResponse(APP_RESPONSE.OK, data);
-  }
-
-  private async sendPushNotification(
-    userId: string,
-    title?: string,
-    body?: string,
-    data?: Record<string, unknown>,
-  ) {
-    try {
-      if (!getApps().length) return;
-      const tokens = await this.devTokenRepo.find({
-        where: { user_id: userId, is_active: true },
-      });
-      if (tokens.length === 0) return;
-
-      const message: MulticastMessage = {
-        tokens: tokens.map((token) => token.devtoken),
-        data: data
-          ? Object.fromEntries(
-              Object.entries(data).map(([key, value]) => [key, String(value)]),
-            )
-          : {},
-        android: { priority: 'high' },
-        apns: { headers: { 'apns-priority': '10' } },
-      };
-      if (title || body) {
-        message.notification = { title: title ?? '', body: body ?? '' };
-      }
-      await getMessaging().sendEachForMulticast(message);
-    } catch (error) {
-      console.error(
-        `Failed to send FCM notification to user ${userId}:`,
-        error,
-      );
-    }
   }
 
   private async findConversationIdBetweenUsers(
@@ -550,21 +510,10 @@ export class ConversationsService {
         messagePayload,
       );
       if (transactionResult.notification?.created) {
-        this.notificationsService.emitNotification(
+        this.notificationsService.dispatchNotification(
           transactionResult.notification.notification,
         );
       }
-      await this.sendPushNotification(
-        dto.to_id,
-        'Tin nhắn mới',
-        `Bạn có tin nhắn mới từ ${sender.username}`,
-        {
-          type: NotificationType.NEW_MESSAGE,
-          conversation_id: conversationId,
-          notification_id:
-            transactionResult.notification?.notification.id ?? '',
-        },
-      );
     }
 
     return this.success({

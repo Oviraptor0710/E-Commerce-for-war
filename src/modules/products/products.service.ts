@@ -2,9 +2,6 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
-import { DevToken } from '../dev_tokens/entities/dev-token.entity';
-import { getApps } from 'firebase-admin/app';
-import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 import { ProductVariant } from './entities/product_variant.entity';
 import { CreateProductDto } from './dto/create_product.dto';
 import { User } from '../users/entities/user.entity';
@@ -63,58 +60,10 @@ export class ProductsService implements OnModuleInit {
     @InjectRepository(UserBlock)
     private readonly userBlockRepo: Repository<UserBlock>,
 
-    @InjectRepository(DevToken)
-    private readonly devTokenRepo: Repository<DevToken>,
-
     private readonly notificationsService: NotificationsService,
     private readonly productsSearchService: ProductsSearchService,
     private readonly productCommentsService: ProductCommentsService,
   ) {}
-
-  private async sendPushNotification(
-    userId: string,
-    title?: string,
-    body?: string,
-    data?: any,
-  ) {
-    try {
-      if (!getApps().length) return;
-
-      const tokens = await this.devTokenRepo.find({
-        where: { user_id: userId, is_active: true },
-      });
-
-      if (tokens.length === 0) return;
-
-      const deviceTokens = tokens.map((t) => t.devtoken);
-
-      const message: MulticastMessage = {
-        tokens: deviceTokens,
-        data: data
-          ? Object.fromEntries(
-              Object.entries(data).map(([k, v]) => [k, String(v)]),
-            )
-          : {},
-      };
-
-      if (title || body) {
-        message.notification = {
-          title: title || '',
-          body: body || '',
-        };
-      }
-
-      const response = await getMessaging().sendEachForMulticast(message);
-      console.log(
-        `FCM notification sent to user ${userId}, success: ${response.successCount}, failure: ${response.failureCount}`,
-      );
-    } catch (error) {
-      console.error(
-        `Failed to send FCM notification to user ${userId}:`,
-        error,
-      );
-    }
-  }
 
   async onModuleInit() {
     try {
@@ -1108,7 +1057,7 @@ export class ProductsService implements OnModuleInit {
       is_liked = true;
 
       if (product.seller_id !== userId) {
-        const notification = await this.notificationsService.createNotification(
+        await this.notificationsService.createNotification(
           {
             recipientId: product.seller_id,
             actorId: userId,
@@ -1123,16 +1072,6 @@ export class ProductsService implements OnModuleInit {
           },
         );
 
-        await this.sendPushNotification(
-          product.seller_id,
-          'Thông báo mới',
-          `Có người vừa thích sản phẩm "${product.title}" của bạn`,
-          {
-            type: NotificationType.PRODUCT_LIKED,
-            target_id: String(product.id),
-            notification_id: notification.id,
-          },
-        );
       }
     }
 
